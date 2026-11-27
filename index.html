@@ -49,12 +49,14 @@
           <span class="block truncate text-[11px] text-white/70">สนามสอบโรงเรียนชุมชนวัดไทยงาม</span>
         </span>
       </a>
+      <a href="survey/" class="shrink-0 rounded-lg bg-gold-500 px-3 py-1.5 text-xs font-bold text-navy-950 md:hidden">📝 ประเมิน</a>
       <nav class="hidden items-center gap-1 text-sm md:flex" id="topNav">
         <a href="#search" class="rounded-lg px-3 py-2 hover:bg-white/10">ค้นหาห้องสอบ</a>
         <a href="#stats" class="rounded-lg px-3 py-2 hover:bg-white/10">สถิติ</a>
         <a href="#schedule" class="rounded-lg px-3 py-2 hover:bg-white/10">ตารางสอบ</a>
         <a href="#map" class="rounded-lg px-3 py-2 hover:bg-white/10">แผนผัง</a>
         <a href="#committee" class="rounded-lg px-3 py-2 hover:bg-white/10">กรรมการ</a>
+        <a href="survey/" class="rounded-lg bg-gold-500 px-3 py-2 font-semibold text-navy-950 hover:bg-gold-400">ประเมิน</a>
       </nav>
     </div>
   </header>
@@ -165,6 +167,22 @@
       <p class="eyebrow">โปรดอ่านก่อนเข้าห้องสอบ</p>
       <h2 class="section-title mt-1">ระเบียบและข้อปฏิบัติผู้เข้าสอบ</h2>
       <div id="rulesBody" class="mt-5"></div>
+    </section>
+
+    <!-- แบบประเมิน -->
+    <section id="feedback" class="mx-auto max-w-5xl px-4 pt-14 sm:px-5">
+      <div class="hero-bg relative overflow-hidden rounded-3xl p-5 text-white shadow-xl sm:p-8">
+        <div class="dot-pattern absolute inset-0 opacity-30"></div>
+        <div class="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+          <div class="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gold-500/15 text-4xl ring-1 ring-gold-400/40">📝</div>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-bold tracking-widest text-gold-300">ร่วมพัฒนาสนามสอบ</p>
+            <h2 class="mt-1 font-display text-2xl sm:text-3xl">แบบประเมินความพึงพอใจ</h2>
+            <p class="mt-2 text-sm text-white/80" id="feedbackText">พระกรรมการ ครูกรรมการคุมสอบ และนักเรียน ร่วมประเมินสนามสอบโรงเรียนชุมชนวัดไทยงามและการดำเนินงานของคณะกรรมการ · ไม่ต้องระบุชื่อ ใช้เวลาประมาณ ๒ นาที</p>
+          </div>
+          <a href="survey/" id="feedbackBtn" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-gold-500 px-6 py-3.5 font-bold text-navy-950 shadow-lg transition hover:bg-gold-400 active:scale-[.98]">ทำแบบประเมิน →</a>
+        </div>
+      </div>
     </section>
 
     <!-- คณะกรรมการ -->

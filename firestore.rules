@@ -14,6 +14,8 @@ rules_version = '2';
 // [ระบบสนามสอบธรรมสนามหลวง 2569 — เพิ่มใหม่]
 // - dhamma_rooms/{id} : ห้องสอบ + รายชื่อผู้เข้าสอบ + กรรมการกำกับห้อง ทุกคนอ่านได้ เขียนได้เฉพาะ admin
 // - dhamma_site/{id}  : config (ข้อมูลการสอบ/ประกาศ/แผนผัง) และ committee (คำสั่งแต่งตั้ง) ทุกคนอ่านได้ เขียนได้เฉพาะ admin
+// - dhamma_surveys/{id} : แบบประเมินความพึงพอใจ ทุกคนส่งได้ (เพิ่มอย่างเดียว) อ่าน/ลบได้เฉพาะ admin
+//                       เปิด/ปิดรับด้วย dhamma_site/config.surveyOpen
 //
 // อีเมล admin ต้องตรงกับ adminEmail ใน js/config.js ของทุกระบบ
 service cloud.firestore {
@@ -70,6 +72,33 @@ service cloud.firestore {
           && d.proctors is list && d.proctors.size() <= 6;
     }
 
+    /* ---------- ธรรมสนามหลวง: แบบประเมินความพึงพอใจ (ใหม่) ---------- */
+    function dhammaSurveyOpen() {
+      return !exists(/databases/$(database)/documents/dhamma_site/config)
+          || get(/databases/$(database)/documents/dhamma_site/config).data.get('surveyOpen', true) == true;
+    }
+
+    function likert(m, k) {
+      return m[k] is int && m[k] >= 1 && m[k] <= 5;
+    }
+
+    // ข้อคำถามต้องตรงกับ assets/js/survey-questions.js
+    function validDhammaSurvey(d) {
+      return d.keys().hasOnly(['group', 'ans', 'text', 'v', 'createdAt'])
+          && d.group in ['monk', 'teacher', 'student', 'helper', 'other']
+          && d.ans is map
+          && d.ans.keys().hasOnly(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q13'])
+          && d.ans.size() == 13
+          && likert(d.ans, 'q1') && likert(d.ans, 'q2') && likert(d.ans, 'q3') && likert(d.ans, 'q4')
+          && likert(d.ans, 'q5') && likert(d.ans, 'q6') && likert(d.ans, 'q7') && likert(d.ans, 'q8')
+          && likert(d.ans, 'q9') && likert(d.ans, 'q10') && likert(d.ans, 'q11') && likert(d.ans, 'q12')
+          && likert(d.ans, 'q13')
+          && d.text is map && d.text.keys().hasOnly(['like', 'suggest'])
+          && shortText(d.text, 'like') && shortText(d.text, 'suggest')
+          && d.v is int
+          && d.createdAt == request.time;
+    }
+
     match /live/state {
       allow read: if true;
       allow write: if isAdmin();
@@ -106,6 +135,12 @@ service cloud.firestore {
     match /dhamma_site/{docId} {
       allow read: if docId in ['config', 'committee'];
       allow write: if isAdmin() && docId in ['config', 'committee'];
+    }
+
+    match /dhamma_surveys/{id} {
+      allow create: if dhammaSurveyOpen() && validDhammaSurvey(request.resource.data);
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
 
     match /{document=**} {

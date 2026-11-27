@@ -5,18 +5,29 @@
 
 พัฒนาระบบโดย **ธุรการไทยงาม**
 
+- Repository: https://github.com/thaingamja/dhamma69
+- เว็บไซต์ (GitHub Pages): https://thaingamja.github.io/dhamma69/
+- หน้าผู้ดูแล: https://thaingamja.github.io/dhamma69/admin/
+
+แก้งานจากเครื่องอื่น:
+
+```powershell
+git clone https://github.com/thaingamja/dhamma69.git
+```
+
 ## โครงสร้างไฟล์
 
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `index.html`, `assets/js/app.js` | หน้าเว็บสาธารณะ (ไม่ต้องล็อกอิน) |
+| `survey/` , `assets/js/survey-questions.js` | แบบประเมินความพึงพอใจ (ลิงก์: `…/dhamma69/survey/`) — ผลดูได้ที่ admin แท็บ **แบบประเมิน** |
 | `admin/index.html`, `admin/admin.js` | หน้าผู้ดูแล — เพิ่ม/แก้/ลบ/ย้ายนักเรียน, กรรมการ, ตำแหน่งห้อง, หมุดแผนผัง, ประกาศ |
 | `assets/js/firebase.js` | ค่าเชื่อมต่อ Firebase + อีเมลผู้ดูแล |
 | `assets/js/utils.js` | ฟังก์ชันค้นหา เลขไทย สถิติ |
 | `data/seed-2569.json` | ข้อมูลตั้งต้น ๒๙๔ คน ๑๕ ห้อง + คำสั่ง ๐๗/๒๕๖๙ |
 | `firestore.rules` | กฎความปลอดภัย Firestore ฉบับรวม (กีฬาสี + ประชุมผู้ปกครอง + ธรรมสนามหลวง) |
 
-ข้อมูลใน Firestore ใช้ collection `dhamma_rooms` และ `dhamma_site` เท่านั้น ไม่ยุ่งกับข้อมูลระบบอื่นในโปรเจกต์ sportday69
+ข้อมูลใน Firestore ใช้ collection `dhamma_rooms`, `dhamma_site` และ `dhamma_surveys` เท่านั้น ไม่ยุ่งกับข้อมูลระบบอื่นในโปรเจกต์ sportday69
 
 ## ขั้นตอนติดตั้ง (ทำครั้งเดียว)
 

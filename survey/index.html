@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>แบบประเมินความพึงพอใจ · สนามสอบธรรมสนามหลวง ๒๕๖๙ โรงเรียนชุมชนวัดไทยงาม</title>
+  <meta name="description" content="แบบประเมินความพึงพอใจต่อสนามสอบและการดำเนินงานของคณะกรรมการ สนามสอบธรรมสนามหลวง ๒๕๖๙ โรงเรียนชุมชนวัดไทยงาม">
+  <meta name="theme-color" content="#0B1F3A">
+  <meta property="og:title" content="แบบประเมินความพึงพอใจ · สนามสอบโรงเรียนชุมชนวัดไทยงาม">
+  <link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pridi:wght@400;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-navy-950: #06142A; --color-navy-900: #0B1F3A; --color-navy-800: #13294B; --color-navy-700: #1D3A66;
+      --color-gold-600: #B88A1B; --color-gold-500: #C9A227; --color-gold-400: #D9B84A; --color-gold-300: #E6C766; --color-gold-100: #FBF1D0;
+      --color-cream: #FBF7EC;
+      --font-sans: "Sarabun", system-ui, sans-serif;
+      --font-display: "Pridi", "Sarabun", serif;
+    }
+    @layer components {
+      .opt { @apply flex flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-200 bg-white px-1 py-2 text-navy-900 transition active:scale-95; }
+      .opt.on { @apply border-navy-900 bg-navy-900 text-gold-300 shadow; }
+      .grp { @apply flex items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-3.5 text-left font-semibold text-navy-900 transition active:scale-[.98]; }
+      .grp.on { @apply border-gold-500 bg-gold-100 ring-2 ring-gold-300; }
+    }
+  </style>
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <style>html { scroll-padding-bottom: 7rem; }</style>
+</head>
+<body class="min-h-dvh">
+  <header class="hero-bg relative overflow-hidden text-white">
+    <div class="dot-pattern absolute inset-0 opacity-40"></div>
+    <div class="relative mx-auto max-w-2xl px-5 pb-16 pt-6">
+      <a href="../" class="inline-flex items-center gap-1 text-sm text-white/70 hover:text-white">← กลับหน้าหลัก</a>
+      <div class="mt-4 flex items-center gap-3">
+        <img src="../assets/img/favicon.svg" alt="" class="h-12 w-12 shrink-0">
+        <div>
+          <p class="text-xs text-gold-300">สนามสอบธรรมสนามหลวง ๒๕๖๙ · โรงเรียนชุมชนวัดไทยงาม</p>
+          <h1 class="font-display text-2xl leading-tight sm:text-3xl"><span class="gold-text">แบบประเมินความพึงพอใจ</span></h1>
+        </div>
+      </div>
+      <p class="mt-3 text-sm text-white/80">ต่อสนามสอบโรงเรียนชุมชนวัดไทยงาม และการดำเนินงานของคณะกรรมการ · ไม่ต้องระบุชื่อ ใช้เวลาประมาณ ๒ นาที</p>
+    </div>
+  </header>
+
+  <main class="relative z-10 mx-auto -mt-10 max-w-2xl px-3 pb-28 sm:px-5" id="app">
+    <div class="card p-6 text-center text-slate-500">กำลังโหลด…</div>
+  </main>
+
+  <!-- แถบความคืบหน้า + ปุ่มส่ง -->
+  <div id="bar" class="safe-bottom fixed inset-x-0 bottom-0 z-40 hidden border-t border-slate-200 bg-white/95 backdrop-blur">
+    <div class="mx-auto flex max-w-2xl items-center gap-3 px-4 pt-2.5">
+      <div class="min-w-0 flex-1">
+        <p class="text-xs text-slate-500" id="progressText"></p>
+        <div class="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div id="progressBar" class="h-2 rounded-full bg-gradient-to-r from-gold-500 to-gold-300 transition-all" style="width:0%"></div></div>
+      </div>
+      <button id="btnSubmit" class="shrink-0 rounded-2xl bg-navy-900 px-5 py-3 font-bold text-gold-300 shadow-lg transition active:scale-95 disabled:opacity-40">ส่งแบบประเมิน</button>
+    </div>
+  </div>
+
+  <script type="module" src="./survey.js"></script>
+</body>
+</html>

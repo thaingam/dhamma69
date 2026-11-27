@@ -5,6 +5,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
+  getDocs, query, orderBy,
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 import {
   th, toArabic, formatNo, LEVELS, STAGES, LEVEL_COLOR, roomTitle, roomShort, roomPinLabel,
@@ -12,6 +13,9 @@ import {
   DEFAULT_MAP_URL, cloudinaryVariant,
 } from '../assets/js/utils.js';
 import { FLOORPLANS, findPlan, effectiveLocation } from '../assets/js/floorplans.js';
+import {
+  COL_SURVEYS, GROUPS, SECTIONS, QUESTIONS, levelOf, meanSd,
+} from '../assets/js/survey-questions.js';
 
 const auth = getAuth(app);
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -134,7 +138,7 @@ function subscribe() {
   state.unsub.push(onSnapshot(siteRef('config'), (snap) => {
     state.config = snap.exists() ? snap.data() : null;
     state.loaded.config = true;
-    refresh(['system']);
+    refresh(['system', 'survey']);
   }, (err) => toast(errText(err), 'error')));
   state.unsub.push(onSnapshot(siteRef('committee'), (snap) => {
     state.committee = snap.exists() ? snap.data() : null;
@@ -168,7 +172,7 @@ $('#tabs').addEventListener('click', (e) => {
 
 function render() {
   const view = $('#appView');
-  if (!state.rooms.size && state.tab !== 'system') {
+  if (!state.rooms.size && state.tab !== 'system' && state.tab !== 'survey') {
     view.innerHTML = `
       <div class="card mx-auto max-w-lg p-6 text-center">
         <p class="text-4xl">📦</p>
@@ -180,7 +184,7 @@ function render() {
     return;
   }
   ({ rooms: renderRooms, map: renderMap, exam: renderExam, announce: renderAnnounce,
-    committee: renderCommittee, system: renderSystem })[state.tab]();
+    committee: renderCommittee, survey: renderSurvey, system: renderSystem })[state.tab]();
 }
 
 /* ------------------------------------------------------------------ แท็บ ห้องสอบ */
@@ -680,6 +684,171 @@ function renderCommittee() {
     try { await setDoc(siteRef('committee'), data, { merge: true }); toast('บันทึกคณะกรรมการแล้ว'); }
     catch (err) { toast(errText(err), 'error'); }
   };
+}
+
+/* ------------------------------------------------------------------ แท็บ แบบประเมิน */
+
+const survey = { list: null, loading: false, error: '', group: 'all' };
+const groupLabel = (id) => GROUPS.find((g) => g.id === id)?.label || id;
+const fmt2 = (n) => th(n.toFixed(2));
+const dateText = (r) => (r.createdAt?.toDate ? th(r.createdAt.toDate().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })) : '-');
+
+async function loadSurveys() {
+  survey.loading = true; survey.error = '';
+  if (state.tab === 'survey') renderSurvey();
+  try {
+    const snap = await getDocs(query(collection(db, COL_SURVEYS), orderBy('createdAt', 'desc')));
+    survey.list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    survey.error = errText(err);
+  }
+  survey.loading = false;
+  if (state.tab === 'survey') renderSurvey();
+}
+
+function surveyCsv(list) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const head = ['ลำดับ', 'วันเวลา', 'กลุ่มผู้ตอบ', ...QUESTIONS.map((q, i) => `ข้อ ${i + 1} ${q.text}`), 'สิ่งที่ประทับใจ', 'ข้อเสนอแนะ'];
+  const rows = list.map((r, i) => [
+    i + 1,
+    r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('th-TH') : '',
+    groupLabel(r.group),
+    ...QUESTIONS.map((q) => r.ans?.[q.id] ?? ''),
+    r.text?.like || '', r.text?.suggest || '',
+  ]);
+  return '﻿' + [head, ...rows].map((row) => row.map(esc).join(',')).join('\r\n');
+}
+
+function renderSurvey() {
+  const view = $('#appView');
+  const open = state.config?.surveyOpen !== false;
+  const surveyUrl = new URL('../survey/', location.href).href;
+  if (!survey.list && !survey.loading && !survey.error) { loadSurveys(); return; }
+
+  const all = survey.list || [];
+  const list = survey.group === 'all' ? all : all.filter((r) => r.group === survey.group);
+  const stat = (ids) => meanSd(list.flatMap((r) => ids.map((id) => r.ans?.[id]).filter((v) => typeof v === 'number')));
+  const overall = stat(QUESTIONS.map((q) => q.id));
+  const comments = list.filter((r) => r.text?.like || r.text?.suggest);
+  let no = 0;
+
+  view.innerHTML = `
+    <div class="space-y-4">
+      <div class="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        <div class="min-w-0 flex-1">
+          <h2 class="font-display text-lg text-navy-900">แบบประเมินความพึงพอใจ</h2>
+          <p class="text-sm ${open ? 'text-green-700' : 'text-red-600'}">${open ? '● เปิดรับแบบประเมินอยู่' : '● ปิดรับแบบประเมินแล้ว'}</p>
+          <p class="mt-1 break-all text-xs text-slate-500">${h(surveyUrl)}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn btn-ghost" id="btnCopySurvey">คัดลอกลิงก์</button>
+          <a class="btn btn-ghost" href="../survey/" target="_blank">เปิดดู ↗</a>
+          <button class="btn ${open ? 'btn-danger' : 'btn-gold'}" id="btnToggleSurvey">${open ? 'ปิดรับ' : 'เปิดรับ'}</button>
+        </div>
+      </div>
+
+      ${survey.error ? `<p class="rounded-xl bg-red-50 p-3 text-sm text-red-700">${h(survey.error)}</p>` : ''}
+      ${survey.loading && !survey.list ? '<div class="card p-6 text-center text-slate-500">กำลังโหลดผลการประเมิน…</div>' : `
+
+      <div class="flex flex-wrap items-center gap-2">
+        ${[['all', 'ทั้งหมด', all.length], ...GROUPS.map((g) => [g.id, g.label, all.filter((r) => r.group === g.id).length])].map(([id, label, n]) => `
+          <button class="rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ${survey.group === id ? 'bg-navy-900 text-gold-300 ring-navy-900' : 'bg-white text-navy-900 ring-slate-200'}" data-sgroup="${id}">${h(label)} (${th(n)})</button>`).join('')}
+        <span class="flex-1"></span>
+        <button class="btn btn-ghost px-3 py-1.5" id="btnReloadSurvey">↻ รีเฟรช</button>
+        <button class="btn btn-navy px-3 py-1.5" id="btnCsv" ${list.length ? '' : 'disabled'}>⬇ ส่งออก CSV (Excel)</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div class="card p-4 text-center"><p class="font-display text-3xl text-navy-900">${th(list.length)}</p><p class="text-xs text-slate-500">ผู้ตอบ (คน/รูป)</p></div>
+        <div class="card p-4 text-center"><p class="font-display text-3xl text-navy-900">${overall.n ? fmt2(overall.mean) : '-'}</p><p class="text-xs text-slate-500">ค่าเฉลี่ยรวม (x̄)</p></div>
+        <div class="card p-4 text-center"><p class="font-display text-2xl text-gold-600">${levelOf(overall.mean)}</p><p class="text-xs text-slate-500">ระดับความพึงพอใจ</p></div>
+      </div>
+
+      <div class="card overflow-x-auto">
+        <table class="w-full min-w-[560px] text-sm">
+          <thead><tr class="bg-navy-900 text-left text-gold-300">
+            <th class="px-3 py-2 font-semibold">รายการประเมิน</th><th class="w-16 px-2 py-2 text-center">x̄</th><th class="w-16 px-2 py-2 text-center">S.D.</th><th class="w-24 px-2 py-2 text-center">ระดับ</th>
+          </tr></thead>
+          <tbody>
+            ${SECTIONS.map((sec) => {
+              const ss = stat(sec.items.map((q) => q.id));
+              return `
+              <tr class="bg-gold-100/70 font-bold text-navy-900"><td class="px-3 py-2">${h(sec.title)}</td><td class="px-2 text-center">${ss.n ? fmt2(ss.mean) : '-'}</td><td class="px-2 text-center">${ss.n ? fmt2(ss.sd) : '-'}</td><td class="px-2 text-center">${levelOf(ss.mean)}</td></tr>
+              ${sec.items.map((q) => {
+                no += 1;
+                const s = stat([q.id]);
+                return `<tr class="border-t border-slate-100">
+                  <td class="px-3 py-2">${th(no)}. ${h(q.text)}
+                    <div class="mt-1 h-1.5 rounded-full bg-slate-100"><div class="h-1.5 rounded-full bg-gold-500" style="width:${(s.mean / 5) * 100}%"></div></div></td>
+                  <td class="px-2 text-center">${s.n ? fmt2(s.mean) : '-'}</td><td class="px-2 text-center">${s.n ? fmt2(s.sd) : '-'}</td><td class="px-2 text-center">${levelOf(s.mean)}</td></tr>`;
+              }).join('')}`;
+            }).join('')}
+            <tr class="border-t-2 border-navy-900 bg-navy-900/5 font-bold text-navy-900"><td class="px-3 py-2">รวมทุกด้าน</td><td class="px-2 text-center">${overall.n ? fmt2(overall.mean) : '-'}</td><td class="px-2 text-center">${overall.n ? fmt2(overall.sd) : '-'}</td><td class="px-2 text-center">${levelOf(overall.mean)}</td></tr>
+          </tbody>
+        </table>
+        <p class="px-3 py-2 text-xs text-slate-500">เกณฑ์แปลผล: ๔.๕๑–๕.๐๐ มากที่สุด · ๓.๕๑–๔.๕๐ มาก · ๒.๕๑–๓.๕๐ ปานกลาง · ๑.๕๑–๒.๕๐ น้อย · ๑.๐๐–๑.๕๐ น้อยที่สุด</p>
+      </div>
+
+      <div class="card p-4">
+        <h3 class="font-display text-lg text-navy-900">ความคิดเห็นเพิ่มเติม (${th(comments.length)})</h3>
+        <ul class="mt-3 space-y-2">
+          ${comments.map((r) => `
+            <li class="rounded-xl border border-slate-200 p-3 text-sm">
+              <div class="flex items-center gap-2 text-xs text-slate-500">
+                <span class="rounded-md bg-gold-100 px-2 py-0.5 font-semibold text-navy-900">${h(groupLabel(r.group))}</span>
+                <span>${dateText(r)}</span><span class="flex-1"></span>
+                <button class="text-red-600 hover:underline" data-del-survey="${h(r.id)}">ลบ</button>
+              </div>
+              ${r.text.like ? `<p class="mt-2"><b class="text-green-700">ประทับใจ:</b> ${h(r.text.like)}</p>` : ''}
+              ${r.text.suggest ? `<p class="mt-1"><b class="text-gold-600">เสนอแนะ:</b> ${h(r.text.suggest)}</p>` : ''}
+            </li>`).join('') || '<li class="text-sm text-slate-500">ยังไม่มีความคิดเห็น</li>'}
+        </ul>
+      </div>
+
+      <details class="card p-4">
+        <summary class="font-semibold text-navy-900">รายการคำตอบทั้งหมด (${th(list.length)}) — ลบคำตอบที่ไม่เหมาะสม/สแปม</summary>
+        <ul class="mt-3 divide-y divide-slate-100 text-sm">
+          ${list.map((r) => `
+            <li class="flex items-center gap-2 py-2">
+              <span class="w-32 shrink-0 text-xs text-slate-500">${dateText(r)}</span>
+              <span class="min-w-0 flex-1 truncate">${h(groupLabel(r.group))} · ${QUESTIONS.map((q) => th(r.ans?.[q.id] ?? '-')).join(' ')}</span>
+              <button class="text-red-600 hover:underline" data-del-survey="${h(r.id)}">ลบ</button>
+            </li>`).join('')}
+        </ul>
+      </details>`}
+    </div>`;
+
+  $('#btnCopySurvey').onclick = async () => {
+    try { await navigator.clipboard.writeText(surveyUrl); toast('คัดลอกลิงก์แล้ว'); } catch { prompt('คัดลอกลิงก์นี้', surveyUrl); }
+  };
+  $('#btnToggleSurvey').onclick = async () => {
+    if (!confirm(open ? 'ปิดรับแบบประเมิน? (ผู้ใช้จะส่งแบบประเมินไม่ได้)' : 'เปิดรับแบบประเมิน?')) return;
+    try {
+      await setDoc(siteRef('config'), { surveyOpen: !open, updatedAt: serverTimestamp() }, { merge: true });
+      toast(open ? 'ปิดรับแบบประเมินแล้ว' : 'เปิดรับแบบประเมินแล้ว');
+      setTimeout(renderSurvey, 300);
+    } catch (err) { toast(errText(err), 'error'); }
+  };
+  if (survey.loading && !survey.list) return;
+  $('#btnReloadSurvey').onclick = loadSurveys;
+  view.querySelectorAll('[data-sgroup]').forEach((b) => { b.onclick = () => { survey.group = b.dataset.sgroup; renderSurvey(); }; });
+  $('#btnCsv').onclick = () => {
+    const blob = new Blob([surveyCsv(list)], { type: 'text/csv;charset=utf-8' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `แบบประเมิน-ธรรมสนามหลวง2569-${new Date().toISOString().slice(0, 10)}.csv` });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  view.querySelectorAll('[data-del-survey]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('ลบคำตอบนี้ถาวร? (กู้คืนไม่ได้)')) return;
+      try {
+        await deleteDoc(doc(db, COL_SURVEYS, b.dataset.delSurvey));
+        survey.list = survey.list.filter((r) => r.id !== b.dataset.delSurvey);
+        toast('ลบคำตอบแล้ว');
+        renderSurvey();
+      } catch (err) { toast(errText(err), 'error'); }
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ แท็บ ระบบ */

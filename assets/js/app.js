@@ -90,6 +90,7 @@ function renderAll() {
   renderMap();
   renderRules();
   renderCommittee();
+  renderFeedback();
   renderFooter();
   if (firstRender) { firstRender = false; applyDeepLink(); }
 }
@@ -665,6 +666,17 @@ function renderCommittee() {
       ${roomsWithProctors.length ? accordion('กรรมการกำกับห้องสอบ', roomsWithProctors.length + ' ห้อง', proctorBody) : ''}
       ${c.secretariat?.length ? accordion('กองงานเลขานุการ', c.secretariat.length, personRows(c.secretariat)) : ''}
     </div>`;
+}
+
+/* ------------------------------------------------------------------ แบบประเมิน */
+
+function renderFeedback() {
+  const open = state.config?.surveyOpen !== false;
+  const btn = $('#feedbackBtn');
+  btn.classList.toggle('pointer-events-none', !open);
+  btn.classList.toggle('opacity-50', !open);
+  btn.textContent = open ? 'ทำแบบประเมิน →' : 'ปิดรับแบบประเมินแล้ว';
+  if (!open) btn.removeAttribute('href'); else btn.setAttribute('href', 'survey/');
 }
 
 /* ------------------------------------------------------------------ footer + เมนู */

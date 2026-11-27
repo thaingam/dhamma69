@@ -100,10 +100,26 @@ export function buildIndex(rooms) {
         name: normalize(`${s.first}${s.last === '-' ? '' : s.last}`),
         first: normalize(s.first),
         last: normalize(s.last),
+        school: schoolName(s),
       });
     }
   }
   return list;
+}
+
+export const NO_SCHOOL = 'ไม่ระบุสถานศึกษา';
+
+/** ชื่อสถานศึกษาของนักเรียน (ตัดช่องว่างหัวท้าย / ไม่มี → ไม่ระบุ) */
+export function schoolName(s) {
+  return String(s?.school ?? '').replace(/\s+/g, ' ').trim() || NO_SCHOOL;
+}
+
+/** รายชื่อสถานศึกษาทั้งหมด พร้อมจำนวนนักเรียน เรียงจากมากไปน้อย */
+export function listSchools(index) {
+  const count = new Map();
+  for (const item of index) count.set(item.school, (count.get(item.school) || 0) + 1);
+  return [...count].map(([name, total]) => ({ name, total }))
+    .sort((a, b) => (a.name === NO_SCHOOL) - (b.name === NO_SCHOOL) || b.total - a.total || a.name.localeCompare(b.name, 'th'));
 }
 
 export function search(index, raw, limit = 50) {

@@ -99,8 +99,9 @@
           <p class="eyebrow">ค้นหาผู้เข้าสอบ</p>
           <h2 class="section-title mt-1">ฉันสอบห้องไหน?</h2>
           <div class="mt-4 flex gap-1 rounded-2xl bg-slate-100 p-1" role="tablist">
-            <button class="seg active" data-mode="name" role="tab">ค้นจากชื่อ / เลขที่สอบ</button>
-            <button class="seg" data-mode="room" role="tab">ดูตามห้องสอบ</button>
+            <button class="seg active" data-mode="name" role="tab">ชื่อ / เลขที่สอบ</button>
+            <button class="seg" data-mode="room" role="tab">ตามห้องสอบ</button>
+            <button class="seg" data-mode="school" role="tab">ตามโรงเรียน</button>
           </div>
         </div>
 
@@ -135,6 +136,15 @@
             <div class="flex flex-wrap gap-2" id="pickRoom"></div>
           </div>
           <div id="roomDetail"></div>
+        </div>
+
+        <!-- โหมดดูตามโรงเรียน (สำหรับครู / ผู้ปกครอง ดูนักเรียนของโรงเรียนตนเอง) -->
+        <div id="modeSchool" class="hidden space-y-4 p-4 sm:p-6">
+          <div>
+            <p class="mb-2 text-sm font-semibold text-navy-800">โรงเรียน / สถานศึกษา</p>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" id="pickSchool"></div>
+          </div>
+          <div id="schoolDetail"></div>
         </div>
       </div>
     </section>

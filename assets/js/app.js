@@ -6,7 +6,7 @@ import {
 import {
   th, formatNo, LEVELS, LEVEL_ORDER, STAGES, STAGE_SHORT, LEVEL_COLOR, levelTitle, roomTitle, roomShort,
   roomPinLabel, locationText, sortRooms, fullName, buildIndex, search, escapeHtml as h, safeImageUrl, computeStats,
-  DEFAULT_MAP_URL, cloudinaryVariant,
+  DEFAULT_MAP_URL, cloudinaryVariant, listSchools, parseQuery,
 } from './utils.js';
 import { FLOORPLANS, findPlan, effectiveLocation, planTheme } from './floorplans.js';
 import { mountFloorPlan } from './floorplan-canvas.js';
@@ -21,6 +21,7 @@ const state = {
   loaded: { rooms: false, config: false, committee: false },
   mode: 'name',
   pick: { level: 'tri', stage: 'p', roomId: null },
+  school: { name: null, filter: '' },
   mapRoomId: null,
   buildingId: null,
   zoom: 1,
@@ -168,6 +169,7 @@ function renderSearchReady() {
   }
   runSearch();
   renderRoomPicker();
+  renderSchoolPicker();
 }
 
 function proctorList(room) {
@@ -279,6 +281,7 @@ function setMode(mode) {
   document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
   $('#modeName').classList.toggle('hidden', mode !== 'name');
   $('#modeRoom').classList.toggle('hidden', mode !== 'room');
+  $('#modeSchool').classList.toggle('hidden', mode !== 'school');
 }
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
@@ -350,6 +353,159 @@ function openRoomView(roomId) {
   renderRoomPicker();
   $('#search').scrollIntoView({ behavior: 'smooth' });
 }
+
+/* ---------- ดูตามโรงเรียน (ครู / ผู้ปกครอง ดูนักเรียนของโรงเรียนตนเอง) ---------- */
+
+const schoolHits = (name) => state.index.filter((x) => x.school === name);
+
+/** นักเรียนของโรงเรียน แยกตามห้องสอบ (เรียงห้องตามลำดับปกติ) */
+function schoolGroups(hits) {
+  return state.rooms
+    .map((room) => ({ room, items: hits.filter((x) => x.room === room).sort((a, b) => a.no.localeCompare(b.no)) }))
+    .filter((g) => g.items.length);
+}
+
+function filterSchoolHits(hits, raw) {
+  const { text, isNumber } = parseQuery(raw);
+  if (!text) return hits;
+  return hits.filter((x) => (isNumber ? x.no.includes(text) : x.name.includes(text)));
+}
+
+function schoolUrl(name) {
+  return `${location.origin}${location.pathname}?school=${encodeURIComponent(name)}`;
+}
+
+function renderSchoolPicker() {
+  const schools = listSchools(state.index);
+  if (!schools.some((s) => s.name === state.school.name)) state.school.name = null;
+  $('#pickSchool').innerHTML = schools.map((s) => `
+    <button class="chip flex items-center gap-2 text-left ${s.name === state.school.name ? 'active' : ''}" data-school="${h(s.name)}">
+      <span class="text-lg">🏫</span>
+      <span class="min-w-0 flex-1 leading-snug">${h(th(s.name))}</span>
+      <span class="shrink-0 rounded-full bg-black/5 px-2 py-0.5 text-xs">${th(s.total)} คน</span>
+    </button>`).join('');
+  renderSchoolDetail();
+}
+
+function renderSchoolDetail() {
+  const box = $('#schoolDetail');
+  const name = state.school.name;
+  if (!name) {
+    box.innerHTML = `<p class="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-600">
+      เลือกโรงเรียนด้านบน เพื่อดูรายชื่อนักเรียนทั้งหมดของโรงเรียน<br><span class="text-xs text-slate-500">แยกตามห้องสอบ พร้อมตำแหน่งห้องและแผนผัง</span></p>`;
+    return;
+  }
+  const hits = schoolHits(name);
+  const byLevel = LEVEL_ORDER.map((lv) => [lv, hits.filter((x) => x.room.level === lv).length]).filter(([, n]) => n);
+  const rooms = new Set(hits.map((x) => x.room.id)).size;
+  const hadFocus = document.activeElement?.id === 'schoolFilter';
+  box.innerHTML = `
+    <div class="space-y-4">
+      <div class="relative overflow-hidden rounded-2xl bg-navy-900 p-4 text-white">
+        <div class="dot-pattern absolute inset-0 opacity-30"></div>
+        <div class="relative">
+          <p class="text-xs text-gold-300">นักเรียนจาก</p>
+          <p class="font-display text-xl leading-snug">${h(th(name))}</p>
+          <p class="mt-1 text-sm text-white/80">เข้าสอบ <b class="text-gold-300">${th(hits.length)}</b> คน · ใน ${th(rooms)} ห้องสอบ</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            ${byLevel.map(([lv, n]) => `<span class="rounded-full px-2.5 py-0.5 text-xs font-bold" style="background:${LEVEL_COLOR[lv].bg};color:${LEVEL_COLOR[lv].fg}">ชั้น${LEVELS[lv]} ${th(n)} คน</span>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <label for="schoolFilter" class="sr-only">ค้นหาชื่อในโรงเรียนนี้</label>
+        <input id="schoolFilter" type="search" enterkeyhint="search" autocomplete="off" value="${h(state.school.filter)}"
+          placeholder="ค้นชื่อ / เลขที่สอบ ในโรงเรียนนี้"
+          class="min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-navy-900 placeholder:text-slate-400 focus:border-gold-500 focus:outline-none focus:ring-4 focus:ring-gold-300/40">
+        <button class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-school-share>${ICON.share} แชร์รายชื่อ</button>
+      </div>
+      <div id="schoolList" class="space-y-3"></div>
+    </div>`;
+  renderSchoolList();
+  if (hadFocus) { const f = $('#schoolFilter'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+}
+
+function renderSchoolList() {
+  const box = $('#schoolList');
+  if (!box) return;
+  const all = schoolHits(state.school.name);
+  const hits = filterSchoolHits(all, state.school.filter);
+  if (!hits.length) {
+    box.innerHTML = `<p class="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-600">ไม่พบนักเรียนที่ตรงกับ “${h(state.school.filter)}” ในโรงเรียนนี้</p>`;
+    return;
+  }
+  box.innerHTML = (hits.length < all.length ? `<p class="text-xs font-semibold text-slate-500">พบ ${th(hits.length)} จาก ${th(all.length)} คน</p>` : '')
+    + schoolGroups(hits).map(({ room, items }) => {
+      const c = LEVEL_COLOR[room.level];
+      const loc = roomLoc(room);
+      const plan = findPlan(room.id);
+      return `
+      <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-cream px-3.5 py-3">
+          <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg leading-none" style="background:${c.bg};color:${c.fg}">${th(room.roomNo)}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block font-semibold text-navy-900">${h(roomShort(room))} <span class="text-xs font-normal text-slate-500">(${th(items.length)} คน)</span></span>
+            <span class="flex items-start gap-1 text-xs text-slate-500">${ICON.pin}<span>${loc ? h(loc) : 'ตำแหน่งห้องจะแจ้งให้ทราบ'}</span></span>
+          </span>
+          <span class="flex gap-2">
+            ${plan ? `<button class="rounded-lg bg-gold-500 px-2.5 py-1.5 text-xs font-bold text-navy-950 hover:bg-gold-400" data-show-map="${h(room.id)}">ดูผัง</button>` : ''}
+            <button class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-900 hover:bg-slate-50" data-open-room="${h(room.id)}">ทั้งห้อง</button>
+          </span>
+        </div>
+        <ol class="divide-y divide-slate-100">
+          ${items.map((x, i) => `
+            <li class="flex items-center gap-3 px-4 py-2.5">
+              <span class="w-6 shrink-0 text-right text-xs text-slate-400">${th(i + 1)}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-semibold text-navy-900">${h(fullName(x.student))}${x.student.note ? ` <span class="text-gold-600">${h(x.student.note)}</span>` : ''}</span>
+                <span class="block text-xs text-slate-500">${formatNo(x.no)}${x.student.wat ? ` · ${h(x.student.wat)}` : ''}</span>
+              </span>
+            </li>`).join('')}
+        </ol>
+      </div>`;
+    }).join('');
+}
+
+/** ข้อความรายชื่อทั้งโรงเรียน สำหรับส่งต่อในไลน์ / กลุ่มผู้ปกครอง */
+function schoolShareText(name) {
+  const hits = schoolHits(name);
+  const lines = [`รายชื่อนักเรียน${th(name)} สอบธรรมสนามหลวง ๒๕๖๙ (${th(hits.length)} คน)`];
+  for (const { room, items } of schoolGroups(hits)) {
+    const loc = roomLoc(room);
+    lines.push('', `▸ ${roomShort(room)}${loc ? ` — ${loc}` : ''} (${th(items.length)} คน)`);
+    items.forEach((x, i) => lines.push(`${th(i + 1)}. ${fullName(x.student)} (${formatNo(x.no)})`));
+  }
+  return lines.join('\n');
+}
+
+function selectSchool(name) {
+  state.school = { name, filter: '' };
+  renderSchoolPicker();
+}
+
+$('#modeSchool').addEventListener('click', async (e) => {
+  const pick = e.target.closest('[data-school]');
+  if (pick) { selectSchool(pick.dataset.school); return; }
+  const shareBtn = e.target.closest('[data-school-share]');
+  if (shareBtn && state.school.name) {
+    const text = schoolShareText(state.school.name);
+    const url = schoolUrl(state.school.name);
+    try {
+      if (navigator.share) await navigator.share({ title: 'รายชื่อนักเรียนสอบธรรมสนามหลวง', text, url });
+      else { await navigator.clipboard.writeText(`${text}\n\n${url}`); shareBtn.lastChild.textContent = ' คัดลอกแล้ว'; }
+    } catch { /* ผู้ใช้กดยกเลิก */ }
+  }
+});
+let schoolTimer;
+$('#modeSchool').addEventListener('input', (e) => {
+  if (e.target.id !== 'schoolFilter') return;
+  state.school.filter = e.target.value;
+  clearTimeout(schoolTimer);
+  schoolTimer = setTimeout(renderSchoolList, 120);
+});
+$('#modeSchool').addEventListener('keydown', (e) => {
+  if (e.target.id === 'schoolFilter' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+});
 
 /* ---------- ปุ่มต่าง ๆ ในผลค้นหา (delegation) ---------- */
 
@@ -708,6 +864,12 @@ function applyDeepLink() {
   if (q) {
     $('#q').value = q;
     runSearch();
+    setTimeout(() => $('#search').scrollIntoView({ behavior: 'smooth' }), 300);
+  }
+  const school = params.get('school');
+  if (school && state.index.some((x) => x.school === school)) {
+    setMode('school');
+    selectSchool(school);
     setTimeout(() => $('#search').scrollIntoView({ behavior: 'smooth' }), 300);
   }
   const m = location.hash.match(/^#room=([\w-]+)$/);

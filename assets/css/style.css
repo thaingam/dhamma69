@@ -1,0 +1,78 @@
+/* สไตล์เสริม Tailwind — ธีมทอง + น้ำเงินกรมท่า */
+:root {
+  --navy-950: #06142A;
+  --navy-900: #0B1F3A;
+  --navy-800: #13294B;
+  --navy-700: #1D3A66;
+  --gold-500: #C9A227;
+  --gold-400: #D9B84A;
+  --gold-300: #E6C766;
+  --gold-100: #FBF1D0;
+  --cream: #FBF7EC;
+}
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { font-family: 'Sarabun', system-ui, sans-serif; background: var(--cream); color: #1f2937; }
+.font-display { font-family: 'Pridi', 'Sarabun', serif; }
+[id] { scroll-margin-top: 4.5rem; }
+
+/* พื้นหลัง hero: ไล่สีกรมท่า + ลวดลายจุดทองจาง ๆ */
+.hero-bg {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(201, 162, 39, .18), transparent 40%),
+    radial-gradient(circle at 85% 0%, rgba(230, 199, 102, .14), transparent 35%),
+    linear-gradient(160deg, var(--navy-800) 0%, var(--navy-900) 55%, var(--navy-950) 100%);
+}
+.dot-pattern {
+  background-image: radial-gradient(rgba(230, 199, 102, .22) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.gold-text {
+  background: linear-gradient(180deg, #F4DE8F 0%, #D9B84A 55%, #B88A1B 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.gold-line { height: 2px; background: linear-gradient(90deg, transparent, var(--gold-400), transparent); }
+.card { background: #fff; border-radius: 1.25rem; box-shadow: 0 1px 2px rgba(11, 31, 58, .06), 0 8px 24px -12px rgba(11, 31, 58, .18); }
+
+/* ธรรมจักรหมุนช้า ๆ */
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.wheel-spin { animation: spin-slow 60s linear infinite; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) { .wheel-spin, .pin-pulse::after { animation: none !important; } }
+
+/* หมุดบนแผนผัง */
+.map-pin {
+  position: absolute; transform: translate(-50%, -100%);
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 2.1rem; padding: .15rem .4rem; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; line-height: 1.2; white-space: nowrap;
+  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); cursor: pointer;
+}
+.map-pin::before {
+  content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #fff;
+}
+.map-pin.is-active { z-index: 5; outline: 3px solid var(--gold-300); }
+.pin-pulse::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 999px;
+  border: 3px solid var(--gold-300); animation: pulse 1.2s ease-out infinite;
+}
+@keyframes pulse { from { opacity: 1; transform: scale(.8); } to { opacity: 0; transform: scale(1.6); } }
+
+/* skeleton ระหว่างโหลด */
+.skeleton { background: linear-gradient(90deg, #eee 25%, #f6f6f6 37%, #eee 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: .5rem; }
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+/* ไฮไลต์คำที่ค้นเจอ */
+mark { background: var(--gold-100); color: inherit; padding: 0 .1em; border-radius: .2em; }
+
+/* ช่องว่างด้านล่างให้แถบเมนูมือถือ */
+.safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + .5rem); }
+
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] .chev { transform: rotate(180deg); }
+
+input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

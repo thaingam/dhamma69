@@ -1,0 +1,766 @@
+// หน้า admin — จัดการห้องสอบ นักเรียน กรรมการ แผนผัง ประกาศ และข้อมูลการสอบ
+import { app, db, ADMIN_EMAIL, COL_ROOMS, COL_SITE } from '../assets/js/firebase.js';
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+} from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
+import {
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
+} from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
+import {
+  th, toArabic, formatNo, LEVELS, STAGES, LEVEL_COLOR, roomTitle, roomShort, roomPinLabel,
+  locationText, sortRooms, fullName, escapeHtml as h, safeImageUrl, computeStats, normalize,
+} from '../assets/js/utils.js';
+
+const auth = getAuth(app);
+const $ = (sel, root = document) => root.querySelector(sel);
+
+const state = {
+  rooms: new Map(),      // id → room (จาก Firestore)
+  config: null,
+  committee: null,
+  tab: 'rooms',
+  editId: null,          // ห้องที่กำลังแก้
+  draft: null,           // สำเนาที่กำลังแก้
+  dirty: false,
+  studentFilter: '',
+  mapRoomId: '',
+  unsub: [],
+  loaded: { rooms: false, config: false, committee: false },
+};
+
+const PREFIX_OPTIONS = ['เด็กชาย', 'เด็กหญิง', 'นาย', 'นางสาว', 'นาง'];
+const ROLE_OPTIONS = ['หัวหน้า', 'ผู้ช่วย', 'กรรมการ'];
+
+/* ------------------------------------------------------------------ ทั่วไป */
+
+function toast(msg, type = 'ok') {
+  const box = $('#toast');
+  const el = document.createElement('div');
+  const tone = type === 'error' ? 'bg-red-600 text-white' : type === 'warn' ? 'bg-gold-300 text-navy-950' : 'bg-navy-900 text-white';
+  el.className = `pointer-events-auto rounded-xl px-4 py-3 text-sm font-semibold shadow-xl ${tone}`;
+  el.textContent = msg;
+  box.replaceChildren(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function errText(err) {
+  const code = err?.code || '';
+  if (code.includes('permission-denied')) return 'ไม่มีสิทธิ์บันทึก — ตรวจสอบว่า publish firestore.rules แล้ว และล็อกอินด้วยอีเมลผู้ดูแล';
+  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+  if (code.includes('too-many-requests')) return 'ลองผิดหลายครั้งเกินไป กรุณารอสักครู่';
+  if (code.includes('network')) return 'เชื่อมต่ออินเทอร์เน็ตไม่ได้';
+  return err?.message || String(err);
+}
+
+function show(view) {
+  for (const id of ['loginView', 'deniedView', 'loadingView', 'appView']) $('#' + id).classList.toggle('hidden', id !== view);
+  const inApp = view === 'appView';
+  $('#tabs').classList.toggle('hidden', !inApp);
+  $('#tabs').classList.toggle('flex', inApp);
+}
+
+const roomsSorted = () => sortRooms([...state.rooms.values()]);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const roomRef = (id) => doc(db, COL_ROOMS, id);
+const siteRef = (id) => doc(db, COL_SITE, id);
+
+function roomPayload(room) {
+  const { id, updatedAt, ...rest } = room;
+  rest.students = [...(rest.students || [])].sort((a, b) => a.no.localeCompare(b.no));
+  return { ...rest, updatedAt: serverTimestamp() };
+}
+
+function levelBadge(room) {
+  const c = LEVEL_COLOR[room.level];
+  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold" style="background:${c.bg};color:${c.fg}">${h(roomPinLabel(room))}</span>`;
+}
+
+/* ------------------------------------------------------------------ ล็อกอิน */
+
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#btnLogin');
+  btn.disabled = true;
+  $('#loginError').classList.add('hidden');
+  try {
+    await signInWithEmailAndPassword(auth, $('#email').value.trim(), $('#password').value);
+  } catch (err) {
+    $('#loginError').textContent = errText(err);
+    $('#loginError').classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('#btnLogout').addEventListener('click', async () => {
+  if (state.dirty && !confirm('มีการแก้ไขที่ยังไม่บันทึก ต้องการออกจากระบบหรือไม่?')) return;
+  await signOut(auth);
+});
+
+onAuthStateChanged(auth, (user) => {
+  state.unsub.forEach((fn) => fn());
+  state.unsub = [];
+  $('#btnLogout').classList.toggle('hidden', !user);
+  if (!user) { show('loginView'); return; }
+  if ((user.email || '').toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    $('#deniedEmail').textContent = user.email || '';
+    show('deniedView');
+    return;
+  }
+  show('loadingView');
+  subscribe();
+});
+
+function subscribe() {
+  state.loaded = { rooms: false, config: false, committee: false };
+  let shown = false;
+  // วาดใหม่เฉพาะแท็บที่ใช้ข้อมูลนั้น เพื่อไม่ล้างฟอร์มที่กำลังพิมพ์ในแท็บอื่น
+  const refresh = (tabs) => {
+    if (!Object.values(state.loaded).every(Boolean)) return;
+    if (!shown) { shown = true; show('appView'); render(); return; }
+    if (tabs.includes(state.tab)) render();
+  };
+  state.unsub.push(onSnapshot(collection(db, COL_ROOMS), (snap) => {
+    state.rooms = new Map(snap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+    if (state.editId && !state.dirty) {
+      const fresh = state.rooms.get(state.editId);
+      state.draft = fresh ? clone(fresh) : null;
+      if (!fresh) state.editId = null;
+    }
+    state.loaded.rooms = true;
+    refresh(['rooms', 'map', 'system']);
+  }, (err) => toast(errText(err), 'error')));
+  state.unsub.push(onSnapshot(siteRef('config'), (snap) => {
+    state.config = snap.exists() ? snap.data() : null;
+    state.loaded.config = true;
+    refresh(['system']);
+  }, (err) => toast(errText(err), 'error')));
+  state.unsub.push(onSnapshot(siteRef('committee'), (snap) => {
+    state.committee = snap.exists() ? snap.data() : null;
+    state.loaded.committee = true;
+    refresh(['system']);
+  }, (err) => toast(errText(err), 'error')));
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (state.dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+/* ------------------------------------------------------------------ แท็บ */
+
+$('#tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-tab]');
+  if (!btn) return;
+  if (state.dirty && state.tab === 'rooms' && btn.dataset.tab !== 'rooms'
+    && !confirm('ห้องที่กำลังแก้ยังไม่ได้บันทึก ต้องการออกจากหน้านี้หรือไม่?')) return;
+  if (state.dirty && btn.dataset.tab !== 'rooms') {
+    // ทิ้งการแก้ไขที่ยังไม่บันทึก กลับไปใช้ข้อมูลจากฐานข้อมูล
+    const fresh = state.editId && state.rooms.get(state.editId);
+    state.draft = fresh ? clone(fresh) : null;
+    state.dirty = false;
+  }
+  state.tab = btn.dataset.tab;
+  document.querySelectorAll('#tabs .tab').forEach((t) => t.classList.toggle('active', t === btn));
+  render();
+  window.scrollTo({ top: 0 });
+});
+
+function render() {
+  const view = $('#appView');
+  if (!state.rooms.size && state.tab !== 'system') {
+    view.innerHTML = `
+      <div class="card mx-auto max-w-lg p-6 text-center">
+        <p class="text-4xl">📦</p>
+        <h2 class="mt-2 font-display text-xl text-navy-900">ยังไม่มีข้อมูลในฐานข้อมูล</h2>
+        <p class="mt-1 text-sm text-slate-600">เริ่มต้นด้วยการนำเข้าข้อมูลตั้งต้น (ผู้เข้าสอบ ๒๙๔ คน ๑๕ ห้อง และคำสั่งแต่งตั้ง)</p>
+        <button class="btn btn-gold mt-4" data-goto="system">ไปที่แท็บระบบ → นำเข้าข้อมูล</button>
+      </div>`;
+    view.querySelector('[data-goto]').onclick = () => $('#tabs [data-tab="system"]').click();
+    return;
+  }
+  ({ rooms: renderRooms, map: renderMap, exam: renderExam, announce: renderAnnounce,
+    committee: renderCommittee, system: renderSystem })[state.tab]();
+}
+
+/* ------------------------------------------------------------------ แท็บ ห้องสอบ */
+
+function renderRooms() {
+  const view = $('#appView');
+  const rooms = roomsSorted();
+  view.innerHTML = `
+    <div class="grid gap-5 lg:grid-cols-[20rem_1fr]">
+      <aside class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="font-display text-lg text-navy-900">ห้องสอบ (${th(rooms.length)})</h2>
+          <button class="btn btn-ghost px-3 py-1.5" id="btnAddRoom">+ เพิ่มห้อง</button>
+        </div>
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-1" id="roomList">
+          ${rooms.map((r) => `
+            <button data-room="${h(r.id)}" class="card flex w-full items-center gap-3 p-3 text-left ring-gold-400 transition hover:ring-2 ${r.id === state.editId ? 'ring-2' : ''}">
+              ${levelBadge(r)}
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-semibold text-navy-900">${h(roomShort(r))}</span>
+                <span class="block truncate text-xs text-slate-500">${h(locationText(r.location)) || '<i>ยังไม่ระบุตำแหน่ง</i>'}</span>
+              </span>
+              <span class="text-right text-xs text-slate-500">
+                <b class="block text-base text-navy-900">${th((r.students || []).length)}</b>คน ${r.pin ? '📍' : ''}
+              </span>
+            </button>`).join('')}
+        </div>
+      </aside>
+      <section id="roomEditor">${state.draft ? editorHtml() : `
+        <div class="card grid h-full min-h-60 place-items-center p-6 text-center text-slate-500">
+          เลือกห้องทางซ้ายเพื่อแก้ไขข้อมูลห้อง กรรมการ และรายชื่อนักเรียน
+        </div>`}</section>
+    </div>`;
+
+  view.querySelector('#roomList').onclick = (e) => {
+    const btn = e.target.closest('[data-room]');
+    if (!btn || btn.dataset.room === state.editId) return;
+    if (state.dirty && !confirm('ห้องที่กำลังแก้ยังไม่ได้บันทึก ต้องการเปลี่ยนห้องหรือไม่?')) return;
+    openRoom(btn.dataset.room);
+  };
+  view.querySelector('#btnAddRoom').onclick = addRoomDialog;
+  if (state.draft) bindEditor();
+}
+
+function openRoom(id) {
+  if (!state.rooms.has(id)) return;
+  state.editId = id;
+  state.draft = clone(state.rooms.get(id));
+  state.draft.location ||= { building: '', floor: '', roomName: '', note: '' };
+  state.draft.proctors ||= [];
+  state.draft.students ||= [];
+  state.dirty = false;
+  state.studentFilter = '';
+  renderRooms();
+  if (window.innerWidth < 1024) $('#roomEditor').scrollIntoView({ behavior: 'smooth' });
+}
+
+function editorHtml() {
+  const d = state.draft;
+  const f = normalize(state.studentFilter);
+  const students = [...d.students].sort((a, b) => a.no.localeCompare(b.no));
+  const shown = f ? students.filter((s) => normalize(`${s.no}${s.first}${s.last}`).includes(f)) : students;
+  return `
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center gap-3 bg-navy-900 px-4 py-3 text-white">
+        ${levelBadge(d)}
+        <h2 class="min-w-0 flex-1 font-display text-base sm:text-lg">${h(roomTitle(d))}</h2>
+        <span id="dirtyFlag" class="${state.dirty ? '' : 'hidden'} rounded-full bg-gold-300 px-2 py-0.5 text-xs font-bold text-navy-950">ยังไม่บันทึก</span>
+      </div>
+      <div class="space-y-6 p-4 sm:p-5">
+        <fieldset class="space-y-3">
+          <legend class="font-display text-navy-900">ตำแหน่งห้องสอบ</legend>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div><label class="lbl">อาคาร</label><input class="inp" data-loc="building" value="${h(d.location.building)}" placeholder="เช่น อาคาร ๒"></div>
+            <div><label class="lbl">ชั้น</label><input class="inp" data-loc="floor" value="${h(d.location.floor)}" placeholder="เช่น 1"></div>
+            <div><label class="lbl">ชื่อห้องจริง</label><input class="inp" data-loc="roomName" value="${h(d.location.roomName)}" placeholder="เช่น ห้อง ป.๔/๑"></div>
+          </div>
+          <div><label class="lbl">หมายเหตุ</label><input class="inp" data-loc="note" value="${h(d.location.note)}" placeholder="เช่น ทางขึ้นบันไดฝั่งโรงอาหาร"></div>
+          <p class="text-xs text-slate-500">ปักหมุดห้องบนแผนผังได้ที่แท็บ “แผนผัง” ${d.pin ? '· ✅ ปักหมุดแล้ว' : '· ยังไม่ปักหมุด'}</p>
+        </fieldset>
+
+        <fieldset class="space-y-3">
+          <legend class="font-display text-navy-900">กรรมการกำกับห้องสอบ</legend>
+          <div class="space-y-2" id="proctorRows">
+            ${d.proctors.map((p, i) => `
+              <div class="grid gap-2 rounded-xl border border-slate-200 p-2 sm:grid-cols-[7rem_1fr_1fr_auto]" data-proctor="${i}">
+                <select class="inp" data-pf="role">${ROLE_OPTIONS.map((r) => `<option ${r === p.role ? 'selected' : ''}>${r}</option>`).join('')}</select>
+                <input class="inp" data-pf="name" value="${h(p.name)}" placeholder="ชื่อ-นามสกุล">
+                <input class="inp" data-pf="affiliation" value="${h(p.affiliation)}" placeholder="ตำแหน่ง/สังกัด">
+                <button class="btn btn-danger px-3" data-remove-proctor="${i}" title="ลบ">ลบ</button>
+              </div>`).join('') || '<p class="text-sm text-slate-500">ยังไม่มีกรรมการ</p>'}
+          </div>
+          <button class="btn btn-ghost px-3 py-1.5" id="btnAddProctor">+ เพิ่มกรรมการ</button>
+        </fieldset>
+
+        <fieldset class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <legend class="font-display text-navy-900">ผู้เข้าสอบ (${th(d.students.length)} คน)</legend>
+            <span class="flex-1"></span>
+            <button class="btn btn-gold px-3 py-1.5" id="btnAddStudent">+ เพิ่มนักเรียน</button>
+          </div>
+          <input class="inp" id="studentFilter" placeholder="กรองรายชื่อในห้องนี้…" value="${h(state.studentFilter)}">
+          <div class="divide-y divide-slate-100 rounded-xl border border-slate-200" id="studentRows">
+            ${shown.map((s) => `
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                <span class="w-24 shrink-0 font-mono text-xs text-slate-500">${formatNo(s.no)}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-sm font-semibold text-navy-900">${h(fullName(s))} ${s.note ? `<span class="text-gold-600">${h(s.note)}</span>` : ''}</span>
+                  <span class="block text-xs text-slate-500">${h(s.wat)} · ${h(s.school)}</span>
+                </span>
+                <span class="flex gap-1">
+                  <button class="btn btn-ghost px-2.5 py-1 text-xs" data-edit-student="${h(s.no)}">แก้ไข</button>
+                  <button class="btn btn-ghost px-2.5 py-1 text-xs" data-move-student="${h(s.no)}">ย้ายห้อง</button>
+                  <button class="btn btn-danger px-2.5 py-1 text-xs" data-del-student="${h(s.no)}">ลบ</button>
+                </span>
+              </div>`).join('') || `<p class="p-4 text-center text-sm text-slate-500">${d.students.length ? 'ไม่พบรายชื่อที่กรอง' : 'ยังไม่มีผู้เข้าสอบในห้องนี้ (รอประกาศรายชื่อ)'}</p>`}
+          </div>
+        </fieldset>
+
+        <div class="sticky bottom-3 z-10 flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          <button class="btn btn-navy flex-1" id="btnSaveRoom" ${state.dirty ? '' : 'disabled'}>บันทึกห้องนี้</button>
+          <button class="btn btn-ghost" id="btnRevertRoom" ${state.dirty ? '' : 'disabled'}>ยกเลิกการแก้ไข</button>
+          <button class="btn btn-danger" id="btnDeleteRoom" ${d.students.length ? 'disabled title="ย้าย/ลบนักเรียนออกก่อนจึงลบห้องได้"' : ''}>ลบห้อง</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function markDirty() {
+  state.dirty = true;
+  $('#dirtyFlag')?.classList.remove('hidden');
+  $('#btnSaveRoom')?.removeAttribute('disabled');
+  $('#btnRevertRoom')?.removeAttribute('disabled');
+}
+
+function bindEditor() {
+  const ed = $('#roomEditor');
+  ed.querySelectorAll('[data-loc]').forEach((inp) => {
+    inp.oninput = () => { state.draft.location[inp.dataset.loc] = inp.value.trim(); markDirty(); };
+  });
+  ed.querySelectorAll('[data-proctor]').forEach((row) => {
+    const i = Number(row.dataset.proctor);
+    row.querySelectorAll('[data-pf]').forEach((inp) => {
+      const update = () => { state.draft.proctors[i][inp.dataset.pf] = inp.value.trim(); markDirty(); };
+      inp.oninput = update; inp.onchange = update;
+    });
+  });
+  ed.querySelectorAll('[data-remove-proctor]').forEach((b) => {
+    b.onclick = () => { state.draft.proctors.splice(Number(b.dataset.removeProctor), 1); state.dirty = true; renderRooms(); };
+  });
+  $('#btnAddProctor').onclick = () => {
+    state.draft.proctors.push({ role: state.draft.proctors.length ? 'ผู้ช่วย' : 'หัวหน้า', name: '', affiliation: '' });
+    state.dirty = true; renderRooms();
+  };
+  const filter = $('#studentFilter');
+  filter.oninput = () => {
+    state.studentFilter = filter.value;
+    const pos = filter.selectionStart;
+    renderRooms();
+    const again = $('#studentFilter'); again.focus(); again.setSelectionRange(pos, pos);
+  };
+  $('#btnAddStudent').onclick = () => studentDialog(null);
+  ed.querySelectorAll('[data-edit-student]').forEach((b) => { b.onclick = () => studentDialog(b.dataset.editStudent); });
+  ed.querySelectorAll('[data-move-student]').forEach((b) => { b.onclick = () => moveDialog(b.dataset.moveStudent); });
+  ed.querySelectorAll('[data-del-student]').forEach((b) => {
+    b.onclick = () => {
+      const s = state.draft.students.find((x) => x.no === b.dataset.delStudent);
+      if (!s || !confirm(`ลบ ${fullName(s)} (${formatNo(s.no)}) ออกจากห้องนี้?\n(ต้องกด “บันทึกห้องนี้” จึงจะมีผล)`)) return;
+      state.draft.students = state.draft.students.filter((x) => x !== s);
+      state.dirty = true; renderRooms();
+    };
+  });
+  $('#btnSaveRoom').onclick = saveRoom;
+  $('#btnRevertRoom').onclick = () => { if (confirm('ยกเลิกการแก้ไขทั้งหมดของห้องนี้?')) openRoom(state.editId); };
+  $('#btnDeleteRoom').onclick = deleteRoom;
+}
+
+async function saveRoom() {
+  const btn = $('#btnSaveRoom');
+  btn.disabled = true;
+  try {
+    state.draft.proctors = state.draft.proctors.filter((p) => p.name);
+    await setDoc(roomRef(state.editId), roomPayload(state.draft));
+    state.dirty = false;
+    toast('บันทึกห้องเรียบร้อย');
+    openRoom(state.editId);
+  } catch (err) {
+    toast(errText(err), 'error');
+    btn.disabled = false;
+  }
+}
+
+async function deleteRoom() {
+  const d = state.draft;
+  if (d.students.length) return;
+  if (!confirm(`ลบ ${roomTitle(d)} ออกจากระบบ? (กู้คืนไม่ได้ ยกเว้นนำเข้าข้อมูลตั้งต้นใหม่)`)) return;
+  try {
+    await deleteDoc(roomRef(state.editId));
+    state.editId = null; state.draft = null; state.dirty = false;
+    toast('ลบห้องแล้ว');
+    renderRooms();
+  } catch (err) { toast(errText(err), 'error'); }
+}
+
+/* ---------- กล่องโต้ตอบ ---------- */
+
+function openDialog(html, onSubmit) {
+  const dlg = $('#dlg');
+  dlg.innerHTML = `<form method="dialog" class="space-y-4 p-5">${html}
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" class="btn btn-ghost" data-cancel>ยกเลิก</button>
+      <button class="btn btn-navy" value="ok">ตกลง</button>
+    </div></form>`;
+  const form = dlg.querySelector('form');
+  dlg.querySelector('[data-cancel]').onclick = () => dlg.close();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const ok = await onSubmit(new FormData(form), form);
+    if (ok !== false) dlg.close();
+  };
+  dlg.showModal();
+  form.querySelector('input,select')?.focus();
+}
+
+function allNumbers(exceptRoomId) {
+  const set = new Set();
+  for (const r of state.rooms.values()) {
+    if (r.id === exceptRoomId) continue;
+    (r.students || []).forEach((s) => set.add(s.no));
+  }
+  return set;
+}
+
+function knownValues(key) {
+  const set = new Set();
+  for (const r of state.rooms.values()) (r.students || []).forEach((s) => s[key] && set.add(s[key]));
+  return [...set];
+}
+
+function studentDialog(no) {
+  const editing = no ? state.draft.students.find((s) => s.no === no) : null;
+  const s = editing || { no: '', prefix: 'เด็กชาย', first: '', last: '', wat: '', school: '', note: '' };
+  openDialog(`
+    <h3 class="font-display text-lg text-navy-900">${editing ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียน'} · ${h(roomShort(state.draft))}</h3>
+    <div><label class="lbl">เลขที่สอบ (๘ หลัก เช่น 030-10001)</label><input class="inp" name="no" required value="${h(s.no ? formatNo(s.no) : '030-')}" inputmode="numeric"></div>
+    <div class="grid grid-cols-[8rem_1fr] gap-2">
+      <div><label class="lbl">คำนำหน้า</label><select class="inp" name="prefix">${PREFIX_OPTIONS.map((p) => `<option ${p === s.prefix ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+      <div><label class="lbl">ชื่อ</label><input class="inp" name="first" required value="${h(s.first)}"></div>
+    </div>
+    <div><label class="lbl">นามสกุล</label><input class="inp" name="last" required value="${h(s.last)}"></div>
+    <div><label class="lbl">สังกัดวัด</label><input class="inp" name="wat" list="dlWat" value="${h(s.wat)}"></div>
+    <div><label class="lbl">องค์กร/สถานศึกษา</label><input class="inp" name="school" list="dlSchool" value="${h(s.school)}"></div>
+    <div><label class="lbl">หมายเหตุ (แสดงต่อท้ายชื่อ)</label><input class="inp" name="note" value="${h(s.note)}" placeholder="เช่น (ซ้ำ)"></div>
+    <p class="text-xs text-slate-500">หลังกดตกลง ต้องกด “บันทึกห้องนี้” จึงจะมีผล</p>
+    <datalist id="dlWat">${knownValues('wat').map((v) => `<option value="${h(v)}">`).join('')}</datalist>
+    <datalist id="dlSchool">${knownValues('school').map((v) => `<option value="${h(v)}">`).join('')}</datalist>
+  `, (fd) => {
+    const newNo = toArabic(fd.get('no')).replace(/\D/g, '');
+    if (newNo.length !== 8) { alert('เลขที่สอบต้องมี ๘ หลัก เช่น 030-10001'); return false; }
+    const taken = allNumbers(state.editId);
+    state.draft.students.forEach((x) => { if (x !== editing) taken.add(x.no); });
+    if (taken.has(newNo)) { alert(`เลขที่สอบ ${formatNo(newNo)} มีอยู่แล้ว`); return false; }
+    const data = {
+      no: newNo, prefix: fd.get('prefix'), first: fd.get('first').trim(), last: fd.get('last').trim(),
+      wat: fd.get('wat').trim(), school: fd.get('school').trim(), note: fd.get('note').trim(),
+    };
+    if (editing) Object.assign(editing, data); else state.draft.students.push(data);
+    state.dirty = true;
+    renderRooms();
+    return true;
+  });
+}
+
+function moveDialog(no) {
+  const s = state.draft.students.find((x) => x.no === no);
+  if (!s) return;
+  const targets = roomsSorted().filter((r) => r.id !== state.editId);
+  openDialog(`
+    <h3 class="font-display text-lg text-navy-900">ย้ายห้องสอบ</h3>
+    <p class="text-sm"><b>${h(fullName(s))}</b> <span class="text-slate-500">${formatNo(s.no)}</span><br>จาก ${h(roomShort(state.draft))}</p>
+    <div><label class="lbl">ย้ายไปห้อง</label>
+      <select class="inp" name="target">${targets.map((r) => `<option value="${h(r.id)}">${h(roomShort(r))} (${th((r.students || []).length)} คน)</option>`).join('')}</select></div>
+    <p class="text-xs text-slate-500">บันทึกทันทีทั้ง ๒ ห้อง (รวมการแก้ไขอื่นที่ยังไม่บันทึกของห้องนี้ด้วย)</p>
+  `, async (fd) => {
+    const target = state.rooms.get(fd.get('target'));
+    if (!target) return false;
+    const from = clone(state.draft);
+    from.students = from.students.filter((x) => x.no !== no);
+    from.proctors = from.proctors.filter((p) => p.name);
+    const to = clone(target);
+    to.students = [...(to.students || []), clone(s)];
+    try {
+      const batch = writeBatch(db);
+      batch.set(roomRef(state.editId), roomPayload(from));
+      batch.set(roomRef(target.id), roomPayload(to));
+      await batch.commit();
+      state.dirty = false;
+      toast(`ย้ายไป ${roomShort(target)} แล้ว`);
+      openRoom(state.editId);
+      return true;
+    } catch (err) { toast(errText(err), 'error'); return false; }
+  });
+}
+
+function addRoomDialog() {
+  openDialog(`
+    <h3 class="font-display text-lg text-navy-900">เพิ่มห้องสอบ</h3>
+    <div class="grid grid-cols-3 gap-2">
+      <div><label class="lbl">ชั้น</label><select class="inp" name="level">${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+      <div><label class="lbl">ช่วงชั้น</label><select class="inp" name="stage">${Object.entries(STAGES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+      <div><label class="lbl">ห้องที่</label><input class="inp" name="roomNo" type="number" min="1" max="30" required value="1"></div>
+    </div>
+  `, async (fd) => {
+    const level = fd.get('level'), stage = fd.get('stage'), roomNo = Number(fd.get('roomNo'));
+    const id = `${level}-${stage}-${roomNo}`;
+    if (state.rooms.has(id)) { alert('มีห้องนี้อยู่แล้ว'); return false; }
+    try {
+      await setDoc(roomRef(id), roomPayload({
+        level, stage, roomNo, order: state.rooms.size + 1,
+        location: { building: '', floor: '', roomName: '', note: '' }, pin: null, proctors: [], students: [],
+      }));
+      toast('เพิ่มห้องแล้ว');
+      setTimeout(() => openRoom(id), 300);
+      return true;
+    } catch (err) { toast(errText(err), 'error'); return false; }
+  });
+}
+
+/* ------------------------------------------------------------------ แท็บ แผนผัง */
+
+function renderMap() {
+  const view = $('#appView');
+  const rooms = roomsSorted();
+  const url = safeImageUrl(state.config?.mapUrl);
+  if (!state.mapRoomId || !state.rooms.has(state.mapRoomId)) state.mapRoomId = rooms[0]?.id || '';
+  view.innerHTML = `
+    <div class="space-y-4">
+      <div class="card space-y-3 p-4">
+        <h2 class="font-display text-lg text-navy-900">ภาพแผนผังอาคาร</h2>
+        <p class="text-sm text-slate-600">อัปโหลดภาพขึ้น Cloudinary แล้วคัดลอกลิงก์ภาพ (ขึ้นต้นด้วย https://res.cloudinary.com/…) มาวางที่นี่</p>
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <input class="inp" id="mapUrl" type="url" placeholder="https://res.cloudinary.com/..." value="${h(state.config?.mapUrl || '')}">
+          <button class="btn btn-navy shrink-0" id="btnSaveMap">บันทึกลิงก์</button>
+        </div>
+      </div>
+      <div class="card space-y-3 p-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div class="flex-1"><label class="lbl">ปักหมุดให้ห้อง</label>
+            <select class="inp" id="mapRoom">${rooms.map((r) => `<option value="${h(r.id)}" ${r.id === state.mapRoomId ? 'selected' : ''}>${h(roomShort(r))} ${r.pin ? '📍' : '— ยังไม่ปัก'}</option>`).join('')}</select></div>
+          <button class="btn btn-danger shrink-0" id="btnClearPin">ลบหมุดห้องนี้</button>
+        </div>
+        <p class="rounded-xl bg-gold-100 px-3 py-2 text-sm text-navy-900">👆 เลือกห้อง แล้ว<b>แตะบนภาพ</b>ตรงตำแหน่งห้องนั้น ระบบบันทึกทันที (แตะใหม่เพื่อย้ายหมุด)</p>
+        ${url ? `
+          <div class="overflow-auto rounded-xl border border-slate-200">
+            <div id="mapBox" class="relative mx-auto min-w-[640px] cursor-crosshair select-none">
+              <img src="${h(url)}" alt="แผนผังอาคาร" class="block w-full" draggable="false">
+              ${rooms.filter((r) => r.pin).map((r) => {
+                const c = LEVEL_COLOR[r.level];
+                return `<span class="map-pin ${r.id === state.mapRoomId ? 'is-active pin-pulse' : ''}" style="left:${r.pin.x}%;top:${r.pin.y}%;background:${c.bg};color:${c.fg}">${h(roomPinLabel(r))}</span>`;
+              }).join('')}
+            </div>
+          </div>` : '<p class="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">ยังไม่มีภาพแผนผัง — วางลิงก์ภาพด้านบนก่อน</p>'}
+      </div>
+    </div>`;
+
+  $('#btnSaveMap').onclick = async () => {
+    const raw = $('#mapUrl').value.trim();
+    if (raw && !safeImageUrl(raw)) { toast('ลิงก์ต้องขึ้นต้นด้วย https://', 'error'); return; }
+    try {
+      await setDoc(siteRef('config'), { mapUrl: raw, updatedAt: serverTimestamp() }, { merge: true });
+      toast('บันทึกลิงก์แผนผังแล้ว');
+      setTimeout(renderMap, 300);
+    } catch (err) { toast(errText(err), 'error'); }
+  };
+  $('#mapRoom').onchange = (e) => { state.mapRoomId = e.target.value; renderMap(); };
+  $('#btnClearPin').onclick = async () => {
+    try { await updateDoc(roomRef(state.mapRoomId), { pin: null, updatedAt: serverTimestamp() }); toast('ลบหมุดแล้ว'); setTimeout(renderMap, 300); }
+    catch (err) { toast(errText(err), 'error'); }
+  };
+  const box = $('#mapBox');
+  if (box) {
+    box.onclick = async (e) => {
+      const rect = box.getBoundingClientRect();
+      const x = Math.round(((e.clientX - rect.left) / rect.width) * 1000) / 10;
+      const y = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 10;
+      if (x < 0 || x > 100 || y < 0 || y > 100) return;
+      try {
+        await updateDoc(roomRef(state.mapRoomId), { pin: { x, y }, updatedAt: serverTimestamp() });
+        toast(`ปักหมุด ${roomShort(state.rooms.get(state.mapRoomId))} แล้ว`);
+        setTimeout(renderMap, 250);
+      } catch (err) { toast(errText(err), 'error'); }
+    };
+  }
+}
+
+/* ------------------------------------------------------------------ แท็บ ข้อมูลการสอบ */
+
+function isoToLocal(iso) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso || '') ? iso.slice(0, 16) : '';
+}
+
+function renderExam() {
+  const c = state.config || {};
+  const view = $('#appView');
+  view.innerHTML = `
+    <form id="examForm" class="card space-y-4 p-4 sm:p-5">
+      <h2 class="font-display text-lg text-navy-900">ข้อมูลการสอบ</h2>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div><label class="lbl">ชื่อหัวเว็บ</label><input class="inp" name="title" value="${h(c.title)}"></div>
+        <div><label class="lbl">คำโปรย</label><input class="inp" name="subtitle" value="${h(c.subtitle)}"></div>
+        <div><label class="lbl">สนามสอบ</label><input class="inp" name="venue" value="${h(c.venue)}"></div>
+        <div><label class="lbl">ที่อยู่</label><input class="inp" name="address" value="${h(c.address)}"></div>
+        <div><label class="lbl">รหัสสนาม</label><input class="inp" name="fieldCode" value="${h(c.fieldCode)}"></div>
+        <div><label class="lbl">วันสอบ (ข้อความ)</label><input class="inp" name="examDateText" value="${h(c.examDateText)}"></div>
+        <div><label class="lbl">เริ่มสอบ (ใช้นับถอยหลัง)</label><input class="inp" type="datetime-local" name="examStart" value="${h(isoToLocal(c.examStart))}"></div>
+        <div><label class="lbl">สิ้นสุดการสอบ</label><input class="inp" type="datetime-local" name="examEnd" value="${h(isoToLocal(c.examEnd))}"></div>
+      </div>
+      <div><label class="lbl">ตารางสอบ (บรรทัดละรายการ: เวลา | วิชา)</label>
+        <textarea class="inp min-h-28" name="schedule">${h((c.schedule || []).map((s) => `${s.time} | ${s.subject}`).join('\n'))}</textarea></div>
+      <div><label class="lbl">ระเบียบ/ข้อปฏิบัติผู้เข้าสอบ (บรรทัดละข้อ)</label>
+        <textarea class="inp min-h-40" name="rules">${h((c.rules || []).join('\n'))}</textarea></div>
+      <div><label class="lbl">ชื่อผู้พัฒนา (แสดงท้ายเว็บ)</label><input class="inp" name="developer" value="${h(c.developer || 'ธุรการไทยงาม')}"></div>
+      <button class="btn btn-navy w-full sm:w-auto">บันทึกข้อมูลการสอบ</button>
+    </form>`;
+  $('#examForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const lines = (k) => String(fd.get(k) || '').split('\n').map((l) => l.trim()).filter(Boolean);
+    const local = (k) => (fd.get(k) ? `${fd.get(k)}:00+07:00` : '');
+    const data = {
+      title: fd.get('title').trim(), subtitle: fd.get('subtitle').trim(), venue: fd.get('venue').trim(),
+      address: fd.get('address').trim(), fieldCode: fd.get('fieldCode').trim(), examDateText: fd.get('examDateText').trim(),
+      examStart: local('examStart'), examEnd: local('examEnd'),
+      schedule: lines('schedule').map((l) => {
+        const [time, ...rest] = l.split('|');
+        return { time: time.trim(), subject: rest.join('|').trim() };
+      }),
+      rules: lines('rules'),
+      developer: fd.get('developer').trim() || 'ธุรการไทยงาม',
+      updatedAt: serverTimestamp(),
+    };
+    try { await setDoc(siteRef('config'), data, { merge: true }); toast('บันทึกข้อมูลการสอบแล้ว'); }
+    catch (err) { toast(errText(err), 'error'); }
+  };
+}
+
+/* ------------------------------------------------------------------ แท็บ ประกาศ */
+
+function renderAnnounce() {
+  const a = state.config?.announcement || { active: false, text: '', tone: 'info' };
+  const view = $('#appView');
+  view.innerHTML = `
+    <form id="annForm" class="card space-y-4 p-4 sm:p-5">
+      <h2 class="font-display text-lg text-navy-900">ประกาศข่าวด่วน</h2>
+      <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="active" class="h-5 w-5 accent-[#C9A227]" ${a.active ? 'checked' : ''}>
+        <span class="font-semibold text-navy-900">แสดงประกาศบนหน้าเว็บ</span>
+      </label>
+      <div><label class="lbl">ระดับ</label>
+        <select class="inp" name="tone">
+          <option value="info" ${a.tone !== 'urgent' ? 'selected' : ''}>ข่าวสารทั่วไป (สีทอง)</option>
+          <option value="urgent" ${a.tone === 'urgent' ? 'selected' : ''}>ด่วน (สีแดง)</option>
+        </select></div>
+      <div><label class="lbl">ข้อความประกาศ</label><textarea class="inp min-h-28" name="text" maxlength="500" placeholder="เช่น ผู้เข้าสอบชั้นโท ประถม ห้อง ๖ ให้ไปรายงานตัวที่…">${h(a.text)}</textarea></div>
+      <button class="btn btn-navy w-full sm:w-auto">บันทึกประกาศ</button>
+    </form>`;
+  $('#annForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const announcement = { active: fd.get('active') === 'on', tone: fd.get('tone'), text: String(fd.get('text') || '').trim() };
+    if (announcement.active && !announcement.text) { toast('กรุณาพิมพ์ข้อความประกาศ', 'warn'); return; }
+    try { await setDoc(siteRef('config'), { announcement, updatedAt: serverTimestamp() }, { merge: true }); toast('บันทึกประกาศแล้ว'); }
+    catch (err) { toast(errText(err), 'error'); }
+  };
+}
+
+/* ------------------------------------------------------------------ แท็บ คณะกรรมการ */
+
+function renderCommittee() {
+  const c = state.committee || {};
+  const toLines = (arr) => (arr || []).map((p) => [p.name, p.position, p.role].join(' | ')).join('\n');
+  const view = $('#appView');
+  view.innerHTML = `
+    <form id="comForm" class="card space-y-4 p-4 sm:p-5">
+      <h2 class="font-display text-lg text-navy-900">คำสั่งแต่งตั้งคณะกรรมการ</h2>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div><label class="lbl">คำสั่ง</label><input class="inp" name="orderTitle" value="${h(c.orderTitle)}"></div>
+        <div><label class="lbl">เรื่อง</label><input class="inp" name="orderSubject" value="${h(c.orderSubject)}"></div>
+        <div><label class="lbl">สั่ง ณ วันที่</label><input class="inp" name="orderDate" value="${h(c.orderDate)}"></div>
+        <div><label class="lbl">ผู้ลงนาม</label><input class="inp" name="signer" value="${h(c.signer)}"></div>
+      </div>
+      <div><label class="lbl">คณะกรรมการดำเนินการ (บรรทัดละคน: ชื่อ | ตำแหน่ง | หน้าที่)</label>
+        <textarea class="inp min-h-64 text-sm" name="executive">${h(toLines(c.executive))}</textarea></div>
+      <div><label class="lbl">กองงานเลขานุการ (บรรทัดละคน: ชื่อ | ตำแหน่ง | หน้าที่)</label>
+        <textarea class="inp min-h-56 text-sm" name="secretariat">${h(toLines(c.secretariat))}</textarea></div>
+      <p class="text-xs text-slate-500">กรรมการกำกับห้องสอบ แก้ไขได้ที่แท็บ “ห้องสอบ & นักเรียน”</p>
+      <button class="btn btn-navy w-full sm:w-auto">บันทึกคณะกรรมการ</button>
+    </form>`;
+  $('#comForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const parse = (k) => String(fd.get(k) || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+      const [name = '', position = '', role = ''] = l.split('|').map((x) => x.trim());
+      return { name, position, role };
+    });
+    const data = {
+      orderTitle: fd.get('orderTitle').trim(), orderSubject: fd.get('orderSubject').trim(),
+      orderDate: fd.get('orderDate').trim(), signer: fd.get('signer').trim(),
+      executive: parse('executive'), secretariat: parse('secretariat'), updatedAt: serverTimestamp(),
+    };
+    try { await setDoc(siteRef('committee'), data, { merge: true }); toast('บันทึกคณะกรรมการแล้ว'); }
+    catch (err) { toast(errText(err), 'error'); }
+  };
+}
+
+/* ------------------------------------------------------------------ แท็บ ระบบ */
+
+function renderSystem() {
+  const rooms = roomsSorted();
+  const s = computeStats(rooms);
+  const view = $('#appView');
+  view.innerHTML = `
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div class="card space-y-3 p-4 sm:p-5">
+        <h2 class="font-display text-lg text-navy-900">ข้อมูลในระบบตอนนี้</h2>
+        <ul class="space-y-1 text-sm">
+          <li>ห้องสอบ: <b>${th(s.rooms)}</b> ห้อง · ผู้เข้าสอบ: <b>${th(s.total)}</b> คน · กรรมการกำกับห้อง: <b>${th(s.proctors)}</b></li>
+          <li>ปักหมุดแล้ว: <b>${th(rooms.filter((r) => r.pin).length)}</b> / ${th(rooms.length)} ห้อง · ระบุตำแหน่งแล้ว: <b>${th(rooms.filter((r) => locationText(r.location)).length)}</b> ห้อง</li>
+          <li>ข้อมูลการสอบ: ${state.config ? '✅ มี' : '❌ ยังไม่มี'} · คำสั่งแต่งตั้ง: ${state.committee ? '✅ มี' : '❌ ยังไม่มี'}</li>
+        </ul>
+        <button class="btn btn-ghost" id="btnExport">⬇ ส่งออกข้อมูลสำรอง (JSON)</button>
+      </div>
+
+      <div class="card space-y-3 p-4 sm:p-5">
+        <h2 class="font-display text-lg text-navy-900">นำเข้าข้อมูลตั้งต้น</h2>
+        <p class="text-sm text-slate-600">จากไฟล์ <code>data/seed-2569.json</code> (ถอดจากบัญชีเรียกชื่อและคำสั่ง ๐๗/๒๕๖๙: ผู้เข้าสอบ ๒๙๔ คน ๑๕ ห้อง) — ห้องที่มีอยู่แล้วจะถูกแทนที่ด้วยข้อมูลในไฟล์</p>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="keepLoc" class="mt-1 h-4 w-4" checked> คงตำแหน่งห้องและหมุดที่กรอกไว้แล้ว</label>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="withConfig" class="mt-1 h-4 w-4" ${state.config ? '' : 'checked'}> นำเข้าข้อมูลการสอบ (วันเวลา ตารางสอบ ระเบียบ) ด้วย — ลิงก์แผนผังและประกาศเดิมจะคงไว้</label>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="withCommittee" class="mt-1 h-4 w-4" ${state.committee ? '' : 'checked'}> นำเข้าคำสั่งแต่งตั้ง (กรรมการดำเนินการ/เลขานุการ) ด้วย</label>
+        <button class="btn btn-gold" id="btnImport">นำเข้าข้อมูลตั้งต้น</button>
+      </div>
+    </div>`;
+
+  $('#btnExport').onclick = () => {
+    const strip = (o) => JSON.parse(JSON.stringify(o, (k, v) => (k === 'updatedAt' ? undefined : v)));
+    const data = { exportedAt: new Date().toISOString(), config: strip(state.config), committee: strip(state.committee), rooms: strip(rooms) };
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `dhamma69-backup-${new Date().toISOString().slice(0, 10)}.json` });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  $('#btnImport').onclick = async () => {
+    if (prompt('พิมพ์คำว่า ยืนยัน เพื่อนำเข้าข้อมูลตั้งต้น') !== 'ยืนยัน') return;
+    const btn = $('#btnImport');
+    btn.disabled = true; btn.textContent = 'กำลังนำเข้า…';
+    try {
+      const res = await fetch('../data/seed-2569.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('โหลดไฟล์ seed ไม่ได้ (' + res.status + ')');
+      const seed = await res.json();
+      const keep = $('#keepLoc').checked;
+      const batch = writeBatch(db);
+      for (const r of seed.rooms) {
+        const old = state.rooms.get(r.id);
+        const room = { ...r };
+        if (keep && old) { room.location = old.location || room.location; room.pin = old.pin || null; }
+        batch.set(roomRef(r.id), roomPayload(room));
+      }
+      if ($('#withConfig').checked) {
+        const { mapUrl, announcement, ...cfg } = seed.config;
+        const extra = state.config ? {} : { mapUrl, announcement };
+        batch.set(siteRef('config'), { ...cfg, ...extra, updatedAt: serverTimestamp() }, { merge: true });
+      }
+      if ($('#withCommittee').checked) batch.set(siteRef('committee'), { ...seed.committee, updatedAt: serverTimestamp() });
+      await batch.commit();
+      state.dirty = false; state.editId = null; state.draft = null;
+      toast(`นำเข้าเรียบร้อย: ${seed.rooms.length} ห้อง`);
+    } catch (err) {
+      toast(errText(err), 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'นำเข้าข้อมูลตั้งต้น';
+    }
+  };
+}

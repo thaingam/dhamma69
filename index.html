@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>สนามสอบธรรมสนามหลวง ๒๕๖๙ · โรงเรียนชุมชนวัดไทยงาม</title>
+  <meta name="description" content="ค้นหาห้องสอบธรรมศึกษาชั้นตรี โท เอก สนามสอบจุดที่ ๔ โรงเรียนชุมชนวัดไทยงาม อ.หนองแค จ.สระบุรี วันอังคารที่ ๑ ธันวาคม ๒๕๖๙">
+  <meta name="theme-color" content="#0B1F3A">
+  <meta property="og:title" content="สนามสอบธรรมสนามหลวง ๒๕๖๙ · โรงเรียนชุมชนวัดไทยงาม">
+  <meta property="og:description" content="ค้นหาห้องสอบ ดูแผนผังอาคาร ตารางสอบ และกรรมการกำกับห้องสอบ">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pridi:wght@400;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-navy-950: #06142A; --color-navy-900: #0B1F3A; --color-navy-800: #13294B; --color-navy-700: #1D3A66;
+      --color-gold-600: #B88A1B; --color-gold-500: #C9A227; --color-gold-400: #D9B84A; --color-gold-300: #E6C766; --color-gold-100: #FBF1D0;
+      --color-cream: #FBF7EC;
+      --font-sans: "Sarabun", system-ui, sans-serif;
+      --font-display: "Pridi", "Sarabun", serif;
+    }
+    @layer components {
+      .section-title { @apply font-display text-2xl text-navy-900 sm:text-3xl; }
+      .eyebrow { @apply text-xs font-bold tracking-widest text-gold-600 uppercase; }
+      .seg { @apply flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-navy-800 transition; }
+      .seg.active { @apply bg-navy-900 text-gold-300 shadow; }
+      .chip { @apply rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-navy-900 transition hover:border-gold-400; }
+      .chip.active { @apply border-navy-900 bg-navy-900 text-gold-300; }
+      .nav-item { @apply flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold text-white/70; }
+      .nav-item.active { @apply text-gold-300; }
+    }
+  </style>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="min-h-dvh pb-20 md:pb-0">
+
+  <!-- ประกาศด่วน -->
+  <div id="announce" class="hidden"></div>
+
+  <!-- แถบหัว -->
+  <header class="sticky top-0 z-40 border-b border-white/10 bg-navy-900/95 text-white backdrop-blur">
+    <div class="mx-auto flex max-w-5xl items-center gap-3 px-4 py-2.5">
+      <a href="#top" class="flex min-w-0 flex-1 items-center gap-2.5">
+        <img src="assets/img/favicon.svg" alt="" class="h-9 w-9 shrink-0">
+        <span class="min-w-0 leading-tight">
+          <span class="block truncate font-display text-[15px] text-gold-300">ธรรมสนามหลวง ๒๕๖๙</span>
+          <span class="block truncate text-[11px] text-white/70">สนามสอบโรงเรียนชุมชนวัดไทยงาม</span>
+        </span>
+      </a>
+      <nav class="hidden items-center gap-1 text-sm md:flex" id="topNav">
+        <a href="#search" class="rounded-lg px-3 py-2 hover:bg-white/10">ค้นหาห้องสอบ</a>
+        <a href="#stats" class="rounded-lg px-3 py-2 hover:bg-white/10">สถิติ</a>
+        <a href="#schedule" class="rounded-lg px-3 py-2 hover:bg-white/10">ตารางสอบ</a>
+        <a href="#map" class="rounded-lg px-3 py-2 hover:bg-white/10">แผนผัง</a>
+        <a href="#committee" class="rounded-lg px-3 py-2 hover:bg-white/10">กรรมการ</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- HERO -->
+    <section class="hero-bg relative overflow-hidden text-white">
+      <div class="dot-pattern absolute inset-0 opacity-40"></div>
+      <img src="assets/img/favicon.svg" alt="" aria-hidden="true" class="wheel-spin pointer-events-none absolute -right-24 -top-16 h-80 w-80 opacity-[.07] sm:h-[28rem] sm:w-[28rem]">
+      <div class="relative mx-auto max-w-5xl px-5 pb-20 pt-8 sm:pt-14">
+        <p class="inline-flex items-center gap-2 rounded-full border border-gold-400/40 bg-white/5 px-3 py-1 text-xs text-gold-300">
+          <span class="h-1.5 w-1.5 rounded-full bg-gold-300"></span><span id="heroCode">รหัสสนาม ๒๐๗๐๓๐</span>
+        </p>
+        <h1 class="mt-4 font-display text-[2rem] leading-tight sm:text-5xl">
+          <span class="gold-text" id="heroTitle">สนามสอบธรรมสนามหลวง</span><br>
+          <span class="text-white" id="heroYear">ประจำปี ๒๕๖๙</span>
+        </h1>
+        <p class="mt-3 max-w-xl text-[15px] text-white/80 sm:text-lg" id="heroSub">ธรรมศึกษาชั้นตรี โท เอก · สนามสอบจุดที่ ๔ โรงเรียนชุมชนวัดไทยงาม ตำบลโคกแย้ อำเภอหนองแค จังหวัดสระบุรี</p>
+        <p class="mt-4 inline-flex items-center gap-2 rounded-xl bg-gold-500/15 px-3 py-2 text-sm font-semibold text-gold-100 ring-1 ring-gold-400/30" id="heroDate">
+          วันอังคารที่ ๑ ธันวาคม ๒๕๖๙
+        </p>
+
+        <!-- นับถอยหลัง -->
+        <div id="countdown" class="mt-6 max-w-md" aria-live="polite"></div>
+
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a href="#search" class="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-5 py-3 font-bold text-navy-950 shadow-lg shadow-gold-500/20 transition hover:bg-gold-400 active:scale-[.98]" data-focus-search>
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            ค้นหาห้องสอบ
+          </a>
+          <a href="#map" class="inline-flex items-center gap-2 rounded-2xl border border-white/25 px-5 py-3 font-semibold text-white transition hover:bg-white/10">ดูแผนผังอาคาร</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ค้นหา -->
+    <section id="search" class="relative z-10 mx-auto -mt-12 max-w-5xl px-3 sm:px-5">
+      <div class="card overflow-hidden">
+        <div class="border-b border-slate-100 px-4 pb-3 pt-5 sm:px-6">
+          <p class="eyebrow">ค้นหาผู้เข้าสอบ</p>
+          <h2 class="section-title mt-1">ฉันสอบห้องไหน?</h2>
+          <div class="mt-4 flex gap-1 rounded-2xl bg-slate-100 p-1" role="tablist">
+            <button class="seg active" data-mode="name" role="tab">ค้นจากชื่อ / เลขที่สอบ</button>
+            <button class="seg" data-mode="room" role="tab">ดูตามห้องสอบ</button>
+          </div>
+        </div>
+
+        <!-- โหมดค้นจากชื่อ -->
+        <div id="modeName" class="p-4 sm:p-6">
+          <label for="q" class="sr-only">ชื่อ นามสกุล หรือเลขที่สอบ</label>
+          <div class="relative">
+            <svg class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="q" type="search" enterkeyhint="search" autocomplete="off" disabled
+              placeholder="กำลังโหลดรายชื่อ…"
+              class="w-full rounded-2xl border-2 border-slate-200 bg-white py-4 pl-12 pr-12 text-lg text-navy-900 placeholder:text-slate-400 focus:border-gold-500 focus:outline-none focus:ring-4 focus:ring-gold-300/40">
+            <button id="qClear" class="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-full p-2 text-slate-400 hover:bg-slate-100" aria-label="ล้างคำค้น">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">พิมพ์ชื่อ นามสกุล หรือเลขที่สอบ เช่น <button class="font-semibold text-navy-700 underline decoration-gold-400 underline-offset-2" data-example="10001">๑๐๐๐๑</button> ไม่ต้องพิมพ์คำนำหน้า</p>
+          <div id="results" class="mt-4 space-y-3" aria-live="polite"></div>
+        </div>
+
+        <!-- โหมดดูตามห้อง -->
+        <div id="modeRoom" class="hidden space-y-4 p-4 sm:p-6">
+          <div>
+            <p class="mb-2 text-sm font-semibold text-navy-800">ชั้น</p>
+            <div class="flex gap-1 rounded-2xl bg-slate-100 p-1" id="pickLevel"></div>
+          </div>
+          <div>
+            <p class="mb-2 text-sm font-semibold text-navy-800">ช่วงชั้น</p>
+            <div class="flex gap-1 rounded-2xl bg-slate-100 p-1" id="pickStage"></div>
+          </div>
+          <div>
+            <p class="mb-2 text-sm font-semibold text-navy-800">ห้องสอบ</p>
+            <div class="flex flex-wrap gap-2" id="pickRoom"></div>
+          </div>
+          <div id="roomDetail"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- สถิติ -->
+    <section id="stats" class="mx-auto max-w-5xl px-4 pt-14 sm:px-5">
+      <p class="eyebrow">ภาพรวมสนามสอบ</p>
+      <h2 class="section-title mt-1">สถิติผู้เข้าสอบ</h2>
+      <div id="statsBody" class="mt-5">
+        <div class="grid grid-cols-3 gap-3"><div class="skeleton h-24"></div><div class="skeleton h-24"></div><div class="skeleton h-24"></div></div>
+      </div>
+    </section>
+
+    <!-- ตารางสอบ -->
+    <section id="schedule" class="mx-auto max-w-5xl px-4 pt-14 sm:px-5">
+      <p class="eyebrow">กำหนดการ</p>
+      <h2 class="section-title mt-1">ตารางสอบ</h2>
+      <div id="scheduleBody" class="mt-5"></div>
+    </section>
+
+    <!-- แผนผัง -->
+    <section id="map" class="mx-auto max-w-5xl px-4 pt-14 sm:px-5">
+      <p class="eyebrow">หาห้องสอบให้เจอ</p>
+      <h2 class="section-title mt-1">แผนผังอาคารสนามสอบ</h2>
+      <div id="mapBody" class="mt-5"></div>
+    </section>
+
+    <!-- ระเบียบ -->
+    <section id="rules" class="mx-auto max-w-5xl px-4 pt-14 sm:px-5">
+      <p class="eyebrow">โปรดอ่านก่อนเข้าห้องสอบ</p>
+      <h2 class="section-title mt-1">ระเบียบและข้อปฏิบัติผู้เข้าสอบ</h2>
+      <div id="rulesBody" class="mt-5"></div>
+    </section>
+
+    <!-- คณะกรรมการ -->
+    <section id="committee" class="mx-auto max-w-5xl px-4 pb-16 pt-14 sm:px-5">
+      <p class="eyebrow">ตามคำสั่งแต่งตั้ง</p>
+      <h2 class="section-title mt-1">คณะกรรมการสอบธรรมสนามหลวง</h2>
+      <div id="committeeBody" class="mt-5"></div>
+    </section>
+  </main>
+
+  <!-- ท้ายเว็บ -->
+  <footer class="hero-bg relative overflow-hidden text-white">
+    <div class="dot-pattern absolute inset-0 opacity-30"></div>
+    <div class="relative mx-auto max-w-5xl px-5 py-10 text-center">
+      <img src="assets/img/favicon.svg" alt="" class="mx-auto h-12 w-12">
+      <div class="gold-line mx-auto mt-4 max-w-xs"></div>
+      <p class="mt-4 text-sm text-white/70">พัฒนาระบบโดย</p>
+      <p class="font-display text-2xl text-gold-300" id="devName">ธุรการไทยงาม</p>
+      <p class="mt-1 text-sm text-white/70">โรงเรียนชุมชนวัดไทยงาม ตำบลโคกแย้ อำเภอหนองแค จังหวัดสระบุรี</p>
+      <p class="mx-auto mt-5 max-w-lg text-xs leading-relaxed text-white/50">ข้อมูลจากบัญชีเรียกชื่อผู้เข้าสอบ (ศ.๗) สนามหลวงแผนกธรรม และคำสั่งคณะสงฆ์อำเภอหนองแค ที่ ๐๗/๒๕๖๙ · หากข้อมูลคลาดเคลื่อน โปรดติดต่อเจ้าหน้าที่สนามสอบ</p>
+      <p class="mt-3 text-xs text-white/40"><span id="lastUpdate"></span> · <a href="admin/" class="underline hover:text-gold-300">สำหรับเจ้าหน้าที่</a></p>
+    </div>
+  </footer>
+
+  <!-- แถบเมนูล่าง (มือถือ) -->
+  <nav class="safe-bottom fixed inset-x-0 bottom-0 z-40 flex border-t border-white/10 bg-navy-900/95 backdrop-blur md:hidden" id="bottomNav">
+    <a href="#search" class="nav-item" data-sec="search">
+      <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>ค้นหา
+    </a>
+    <a href="#stats" class="nav-item" data-sec="stats">
+      <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>สถิติ
+    </a>
+    <a href="#schedule" class="nav-item" data-sec="schedule">
+      <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>ตารางสอบ
+    </a>
+    <a href="#map" class="nav-item" data-sec="map">
+      <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>แผนผัง
+    </a>
+    <a href="#committee" class="nav-item" data-sec="committee">
+      <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6"/></svg>กรรมการ
+    </a>
+  </nav>
+
+  <!-- แผนผังเต็มจอ -->
+  <dialog id="mapDialog" class="m-0 h-dvh max-h-none w-screen max-w-none bg-navy-950 p-0 text-white backdrop:bg-black/80">
+    <div class="flex h-full flex-col">
+      <div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+        <p class="flex-1 font-display text-gold-300">แผนผังอาคาร</p>
+        <button class="rounded-lg px-3 py-2 text-xl hover:bg-white/10" data-zoom="-1" aria-label="ย่อ">−</button>
+        <span id="zoomLabel" class="w-12 text-center text-sm">๑๐๐%</span>
+        <button class="rounded-lg px-3 py-2 text-xl hover:bg-white/10" data-zoom="1" aria-label="ขยาย">+</button>
+        <button class="ml-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/20" id="mapClose">ปิด</button>
+      </div>
+      <div class="flex-1 overflow-auto" id="mapZoomScroll"><div id="mapZoomBox" class="relative"></div></div>
+    </div>
+  </dialog>
+
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

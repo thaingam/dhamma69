@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>ผู้ดูแลระบบ · สนามสอบธรรมสนามหลวง ๒๕๖๙</title>
+  <meta name="theme-color" content="#0B1F3A">
+  <link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pridi:wght@400;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-navy-950: #06142A; --color-navy-900: #0B1F3A; --color-navy-800: #13294B; --color-navy-700: #1D3A66;
+      --color-gold-600: #B88A1B; --color-gold-500: #C9A227; --color-gold-400: #D9B84A; --color-gold-300: #E6C766; --color-gold-100: #FBF1D0;
+      --color-cream: #FBF7EC;
+      --font-sans: "Sarabun", system-ui, sans-serif;
+      --font-display: "Pridi", "Sarabun", serif;
+    }
+    @layer components {
+      .inp { @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-300/60; }
+      .lbl { @apply mb-1 block text-sm font-semibold text-navy-800; }
+      .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50; }
+      .btn-gold { @apply bg-gold-500 text-navy-950 hover:bg-gold-400; }
+      .btn-navy { @apply bg-navy-900 text-white hover:bg-navy-800; }
+      .btn-ghost { @apply border border-slate-300 bg-white text-navy-900 hover:bg-slate-50; }
+      .btn-danger { @apply border border-red-200 bg-red-50 text-red-700 hover:bg-red-100; }
+      .tab { @apply shrink-0 rounded-full px-4 py-2 text-sm font-semibold text-white/80 hover:text-white; }
+      .tab.active { @apply bg-gold-500 text-navy-950; }
+    }
+  </style>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body class="min-h-dvh bg-cream text-slate-800">
+  <!-- แถบหัว -->
+  <header class="sticky top-0 z-30 bg-navy-900 text-white shadow-lg">
+    <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+      <img src="../assets/img/favicon.svg" alt="" class="h-9 w-9">
+      <div class="min-w-0 flex-1">
+        <p class="font-display text-base leading-tight text-gold-300 sm:text-lg">ผู้ดูแลระบบสนามสอบ</p>
+        <p class="truncate text-xs text-white/70">ธรรมสนามหลวง ๒๕๖๙ · โรงเรียนชุมชนวัดไทยงาม</p>
+      </div>
+      <a href="../" target="_blank" class="hidden rounded-lg px-3 py-2 text-sm text-white/80 hover:bg-white/10 sm:inline">ดูหน้าเว็บ ↗</a>
+      <button id="btnLogout" class="hidden rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">ออกจากระบบ</button>
+    </div>
+    <nav id="tabs" class="no-scrollbar mx-auto hidden max-w-6xl gap-1 overflow-x-auto px-3 pb-3">
+      <button class="tab active" data-tab="rooms">ห้องสอบ & นักเรียน</button>
+      <button class="tab" data-tab="map">แผนผัง</button>
+      <button class="tab" data-tab="exam">ข้อมูลการสอบ</button>
+      <button class="tab" data-tab="announce">ประกาศ</button>
+      <button class="tab" data-tab="committee">คณะกรรมการ</button>
+      <button class="tab" data-tab="system">ระบบ</button>
+    </nav>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-5">
+    <!-- ล็อกอิน -->
+    <section id="loginView" class="hidden">
+      <form id="loginForm" class="card mx-auto mt-6 max-w-sm space-y-4 p-6">
+        <div class="text-center">
+          <img src="../assets/img/favicon.svg" alt="" class="mx-auto h-14 w-14">
+          <h1 class="mt-2 font-display text-xl text-navy-900">เข้าสู่ระบบผู้ดูแล</h1>
+          <p class="text-sm text-slate-500">ใช้บัญชีอีเมลของผู้ดูแลระบบ</p>
+        </div>
+        <div><label class="lbl" for="email">อีเมล</label><input id="email" type="email" autocomplete="username" required class="inp"></div>
+        <div><label class="lbl" for="password">รหัสผ่าน</label><input id="password" type="password" autocomplete="current-password" required class="inp"></div>
+        <p id="loginError" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+        <button class="btn btn-navy w-full" id="btnLogin">เข้าสู่ระบบ</button>
+      </form>
+    </section>
+
+    <section id="deniedView" class="hidden">
+      <div class="card mx-auto mt-6 max-w-md p-6 text-center">
+        <p class="text-4xl">⛔</p>
+        <h2 class="mt-2 font-display text-xl text-navy-900">บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล</h2>
+        <p id="deniedEmail" class="mt-1 text-sm text-slate-500"></p>
+      </div>
+    </section>
+
+    <section id="loadingView" class="py-20 text-center text-slate-500">กำลังโหลด…</section>
+
+    <!-- เนื้อหาแต่ละแท็บ (สร้างด้วย admin.js) -->
+    <section id="appView" class="hidden"></section>
+  </main>
+
+  <!-- กล่องโต้ตอบ (เพิ่ม/แก้นักเรียน, ย้ายห้อง) -->
+  <dialog id="dlg" class="m-auto w-[min(32rem,calc(100%-1.5rem))] rounded-2xl p-0 shadow-2xl backdrop:bg-navy-950/60"></dialog>
+
+  <div id="toast" class="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4"></div>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>

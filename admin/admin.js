@@ -871,11 +871,14 @@ function renderSystem() {
 
       <div class="card space-y-3 p-4 sm:p-5">
         <h2 class="font-display text-lg text-navy-900">นำเข้าข้อมูลตั้งต้น</h2>
-        <p class="text-sm text-slate-600">จากไฟล์ <code>data/seed-2569.json</code> (ถอดจากบัญชีเรียกชื่อและคำสั่ง ๐๗/๒๕๖๙: ผู้เข้าสอบ ๒๙๔ คน ๑๕ ห้อง) — ห้องที่มีอยู่แล้วจะถูกแทนที่ด้วยข้อมูลในไฟล์</p>
+        <p class="text-sm text-slate-600">เลือกไฟล์ <code>seed-2569.json</code> จากเครื่องของผู้ดูแล (ถอดจากบัญชีเรียกชื่อและคำสั่ง ๐๗/๒๕๖๙: ผู้เข้าสอบ ๒๙๔ คน ๑๕ ห้อง) หรือไฟล์สำรองที่ส่งออกไว้ — ห้องที่มีอยู่แล้วจะถูกแทนที่ด้วยข้อมูลในไฟล์</p>
+        <p class="rounded-xl bg-gold-100 p-3 text-xs text-navy-900">🔒 ไฟล์นี้มีชื่อ-นามสกุลเต็มของนักเรียน <b>ห้ามอัปขึ้น GitHub</b> — เก็บไว้ในเครื่องเท่านั้น และลบทิ้งภายใน ๒๕ ก.พ. ๒๕๗๐</p>
+        <input type="file" id="seedFile" accept=".json,application/json" class="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-navy-900 file:px-3 file:py-2 file:font-semibold file:text-gold-300">
+        <p id="seedInfo" class="hidden text-sm"></p>
         <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="keepLoc" class="mt-1 h-4 w-4" checked> คงตำแหน่งห้องและหมุดที่กรอกไว้แล้ว</label>
         <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="withConfig" class="mt-1 h-4 w-4" ${state.config ? '' : 'checked'}> นำเข้าข้อมูลการสอบ (วันเวลา ตารางสอบ ระเบียบ) ด้วย — ลิงก์แผนผังและประกาศเดิมจะคงไว้</label>
         <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="withCommittee" class="mt-1 h-4 w-4" ${state.committee ? '' : 'checked'}> นำเข้าคำสั่งแต่งตั้ง (กรรมการดำเนินการ/เลขานุการ) ด้วย</label>
-        <button class="btn btn-gold" id="btnImport">นำเข้าข้อมูลตั้งต้น</button>
+        <button class="btn btn-gold" id="btnImport" disabled>นำเข้าข้อมูลตั้งต้น</button>
       </div>
     </div>`;
 
@@ -888,14 +891,36 @@ function renderSystem() {
     URL.revokeObjectURL(a.href);
   };
 
+  // อ่านไฟล์จากเครื่องผู้ดูแล (ไม่เก็บไฟล์รายชื่อไว้บนเว็บ — กันข้อมูลเต็มรั่วผ่าน GitHub Pages)
+  let seed = null;
+  $('#seedFile').onchange = async (e) => {
+    const info = $('#seedInfo');
+    seed = null;
+    $('#btnImport').disabled = true;
+    const file = e.target.files[0];
+    if (!file) { info.classList.add('hidden'); return; }
+    try {
+      const data = JSON.parse(await file.text());
+      if (!Array.isArray(data.rooms) || !data.rooms.every((r) => r.id && Array.isArray(r.students))) throw new Error('bad');
+      seed = data;
+      const n = data.rooms.reduce((t, r) => t + r.students.length, 0);
+      info.className = 'text-sm text-green-700';
+      info.textContent = `✅ ${file.name}: ${th(data.rooms.length)} ห้อง · ผู้เข้าสอบ ${th(n)} คน${data.committee ? ' · มีคำสั่งแต่งตั้ง' : ''}`;
+      $('#btnImport').disabled = false;
+      if (!data.config) $('#withConfig').checked = false;
+      if (!data.committee) $('#withCommittee').checked = false;
+    } catch {
+      info.className = 'text-sm text-red-700';
+      info.textContent = '❌ ไฟล์ไม่ถูกต้อง — ต้องเป็นไฟล์ seed-2569.json หรือไฟล์สำรองที่ส่งออกจากหน้านี้';
+    }
+  };
+
   $('#btnImport').onclick = async () => {
+    if (!seed) return;
     if (prompt('พิมพ์คำว่า ยืนยัน เพื่อนำเข้าข้อมูลตั้งต้น') !== 'ยืนยัน') return;
     const btn = $('#btnImport');
     btn.disabled = true; btn.textContent = 'กำลังนำเข้า…';
     try {
-      const res = await fetch('../data/seed-2569.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('โหลดไฟล์ seed ไม่ได้ (' + res.status + ')');
-      const seed = await res.json();
       const keep = $('#keepLoc').checked;
       const batch = writeBatch(db);
       for (const r of seed.rooms) {
@@ -904,12 +929,12 @@ function renderSystem() {
         if (keep && old) { room.location = old.location || room.location; }
         batch.set(roomRef(r.id), roomPayload(room));
       }
-      if ($('#withConfig').checked) {
+      if ($('#withConfig').checked && seed.config) {
         const { mapUrl, announcement, ...cfg } = seed.config;
         const extra = state.config ? {} : { mapUrl, announcement };
         batch.set(siteRef('config'), { ...cfg, ...extra, updatedAt: serverTimestamp() }, { merge: true });
       }
-      if ($('#withCommittee').checked) batch.set(siteRef('committee'), { ...seed.committee, updatedAt: serverTimestamp() });
+      if ($('#withCommittee').checked && seed.committee) batch.set(siteRef('committee'), { ...seed.committee, updatedAt: serverTimestamp() });
       await batch.commit();
       state.dirty = false; state.editId = null; state.draft = null;
       toast(`นำเข้าเรียบร้อย: ${seed.rooms.length} ห้อง`);

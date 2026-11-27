@@ -67,6 +67,8 @@ function renderForm() {
       <div>
         <p class="text-xs font-bold tracking-widest text-gold-600">ตอนที่ ๓</p>
         <h2 class="font-display text-xl text-navy-900">ความคิดเห็นเพิ่มเติม <span class="text-sm font-normal text-slate-500">(ไม่บังคับ)</span></h2>
+        <p class="mt-1 text-xs text-slate-500">🔒 แบบประเมินไม่เก็บชื่อผู้ตอบ โปรดอย่าพิมพ์ชื่อ เบอร์โทร หรือข้อมูลส่วนตัวในช่องนี้ · ผลใช้เพื่อปรับปรุงการจัดสอบ และลบภายใน ๒๕ ก.พ. ๒๕๗๐ ·
+          <a href="../privacy/" class="font-semibold text-navy-700 underline decoration-gold-400 underline-offset-2">ประกาศความเป็นส่วนตัว</a></p>
       </div>
       <div><label class="mb-1 block text-sm font-semibold text-navy-800" for="like">สิ่งที่ประทับใจ</label>
         <textarea id="like" maxlength="${TEXT_MAX}" rows="3" class="w-full rounded-xl border border-slate-300 p-3 text-base focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-300/60">${h(state.like)}</textarea></div>

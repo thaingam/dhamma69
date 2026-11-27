@@ -5,8 +5,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 import {
   th, formatNo, LEVELS, LEVEL_ORDER, STAGES, STAGE_SHORT, LEVEL_COLOR, levelTitle, roomTitle, roomShort,
-  roomPinLabel, locationText, sortRooms, fullName, buildIndex, search, escapeHtml as h, safeImageUrl, computeStats,
-  DEFAULT_MAP_URL, cloudinaryVariant, listSchools, parseQuery,
+  roomPinLabel, locationText, sortRooms, buildIndex, search, escapeHtml as h, safeImageUrl, computeStats,
+  DEFAULT_MAP_URL, cloudinaryVariant, listSchools, parseQuery, publicName, publicPersonName,
 } from './utils.js';
 import { FLOORPLANS, findPlan, effectiveLocation, planTheme } from './floorplans.js';
 import { mountFloorPlan } from './floorplan-canvas.js';
@@ -51,16 +51,30 @@ function setRooms(rooms) {
   state.loaded.rooms = true;
 }
 
-// ?preview=seed : ดูหน้าเว็บด้วยข้อมูลจากไฟล์ data/seed-2569.json (ไว้ตรวจก่อนนำเข้า Firestore)
+// ?preview=seed : ดูหน้าเว็บด้วยไฟล์ seed-2569.json ที่เลือกจากเครื่อง (ไว้ตรวจก่อนนำเข้า Firestore)
+// ไฟล์รายชื่อเต็มไม่อยู่บนเว็บ — อ่านในเบราว์เซอร์เท่านั้น ไม่ส่งไปที่ใด
 if (new URLSearchParams(location.search).get('preview') === 'seed') {
-  fetch('data/seed-2569.json', { cache: 'no-store' }).then((r) => r.json()).then((seed) => {
-    setRooms(seed.rooms);
-    state.config = { ...seed.config, announcement: { active: true, tone: 'info', text: 'โหมดตัวอย่าง: แสดงข้อมูลจากไฟล์ตั้งต้น ยังไม่ใช่ข้อมูลจริงจากฐานข้อมูล' } };
-    state.committee = seed.committee;
-    state.loaded.config = true;
-    state.loaded.committee = true;
-    renderAll();
-  }).catch(onError);
+  const picker = document.createElement('div');
+  picker.className = 'fixed inset-x-3 top-20 z-50 mx-auto max-w-md rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-slate-200';
+  picker.innerHTML = `
+    <p class="font-display text-lg text-navy-900">โหมดตัวอย่าง</p>
+    <p class="mt-1 text-sm text-slate-600">เลือกไฟล์ <code>seed-2569.json</code> จากเครื่อง เพื่อดูหน้าเว็บด้วยข้อมูลตั้งต้น — ไฟล์ไม่ถูกอัปโหลดไปที่ใด</p>
+    <input type="file" accept=".json,application/json" class="mt-3 block w-full text-sm">`;
+  document.body.append(picker);
+  picker.querySelector('input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const seed = JSON.parse(await file.text());
+      picker.remove();
+      setRooms(seed.rooms);
+      state.config = { ...seed.config, announcement: { active: true, tone: 'info', text: 'โหมดตัวอย่าง: แสดงข้อมูลจากไฟล์ตั้งต้น ยังไม่ใช่ข้อมูลจริงจากฐานข้อมูล' } };
+      state.committee = seed.committee;
+      state.loaded.config = true;
+      state.loaded.committee = true;
+      renderAll();
+    } catch (err) { onError(err); }
+  });
 } else {
   onSnapshot(collection(db, COL_ROOMS), (snap) => {
     setRooms(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -178,7 +192,7 @@ function proctorList(room) {
   return `<ul class="space-y-2">${list.map((p) => `
     <li class="flex items-start gap-3">
       <span class="mt-0.5 shrink-0 rounded-md ${p.role === 'หัวหน้า' ? 'bg-navy-900 text-gold-300' : 'bg-gold-100 text-navy-900'} px-2 py-0.5 text-[11px] font-bold">${h(p.role)}</span>
-      <span class="min-w-0 text-sm"><b class="block text-navy-900">${h(th(p.name))}</b><span class="text-slate-500">${h(th(p.affiliation))}</span></span>
+      <span class="min-w-0 text-sm"><b class="block text-navy-900">${h(th(publicPersonName(p.name)))}</b><span class="text-slate-500">${h(th(p.affiliation))}</span></span>
     </li>`).join('')}</ul>`;
 }
 
@@ -219,7 +233,7 @@ function resultCard(hit, open) {
       <summary class="flex items-center gap-3 p-3.5">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-center font-display text-lg leading-none" style="background:${c.soft};color:${room.level === 'tri' ? '#7A5A00' : c.bg}">${th(room.roomNo)}</span>
         <span class="min-w-0 flex-1">
-          <span class="block truncate font-semibold text-navy-900">${h(fullName(s))}${s.note ? ` <span class="text-gold-600">${h(s.note)}</span>` : ''}</span>
+          <span class="block truncate font-semibold text-navy-900">${h(publicName(s))}${s.note ? ` <span class="text-gold-600">${h(s.note)}</span>` : ''}</span>
           <span class="block truncate text-xs text-slate-500">${formatNo(s.no)} · ${h(roomShort(room))}</span>
         </span>
         ${ICON.chev}
@@ -326,7 +340,7 @@ function renderRoomDetail() {
               <li class="flex items-center gap-3 px-4 py-2.5">
                 <span class="w-6 shrink-0 text-right text-xs text-slate-400">${th(i + 1)}</span>
                 <span class="min-w-0 flex-1">
-                  <span class="block text-sm font-semibold text-navy-900">${h(fullName(s))}${s.note ? ` <span class="text-gold-600">${h(s.note)}</span>` : ''}</span>
+                  <span class="block text-sm font-semibold text-navy-900">${h(publicName(s))}${s.note ? ` <span class="text-gold-600">${h(s.note)}</span>` : ''}</span>
                   <span class="block text-xs text-slate-500">${formatNo(s.no)} · ${h(s.wat)}</span>
                 </span>
               </li>`).join('')}
@@ -457,7 +471,7 @@ function renderSchoolList() {
             <li class="flex items-center gap-3 px-4 py-2.5">
               <span class="w-6 shrink-0 text-right text-xs text-slate-400">${th(i + 1)}</span>
               <span class="min-w-0 flex-1">
-                <span class="block text-sm font-semibold text-navy-900">${h(fullName(x.student))}${x.student.note ? ` <span class="text-gold-600">${h(x.student.note)}</span>` : ''}</span>
+                <span class="block text-sm font-semibold text-navy-900">${h(publicName(x.student))}${x.student.note ? ` <span class="text-gold-600">${h(x.student.note)}</span>` : ''}</span>
                 <span class="block text-xs text-slate-500">${formatNo(x.no)}${x.student.wat ? ` · ${h(x.student.wat)}` : ''}</span>
               </span>
             </li>`).join('')}
@@ -473,7 +487,7 @@ function schoolShareText(name) {
   for (const { room, items } of schoolGroups(hits)) {
     const loc = roomLoc(room);
     lines.push('', `▸ ${roomShort(room)}${loc ? ` — ${loc}` : ''} (${th(items.length)} คน)`);
-    items.forEach((x, i) => lines.push(`${th(i + 1)}. ${fullName(x.student)} (${formatNo(x.no)})`));
+    items.forEach((x, i) => lines.push(`${th(i + 1)}. ${publicName(x.student)} (${formatNo(x.no)})`));
   }
   return lines.join('\n');
 }
@@ -519,7 +533,7 @@ document.addEventListener('click', async (e) => {
     const hit = state.index.find((x) => x.student.no === shareBtn.dataset.share);
     if (!hit) return;
     const url = `${location.origin}${location.pathname}?q=${encodeURIComponent(hit.no)}`;
-    const text = `${fullName(hit.student)} เลขที่สอบ ${formatNo(hit.no)}\n${roomTitle(hit.room)}${roomLoc(hit.room) ? `\n📍 ${roomLoc(hit.room)}` : ''}`;
+    const text = `${publicName(hit.student)} เลขที่สอบ ${formatNo(hit.no)}\n${roomTitle(hit.room)}${roomLoc(hit.room) ? `\n📍 ${roomLoc(hit.room)}` : ''}`;
     try {
       if (navigator.share) await navigator.share({ title: 'ห้องสอบธรรมสนามหลวง', text, url });
       else { await navigator.clipboard.writeText(`${text}\n${url}`); shareBtn.lastChild.textContent = ' คัดลอกแล้ว'; }
@@ -784,7 +798,7 @@ function personRows(list) {
   return `<ul class="divide-y divide-slate-100">${(list || []).map((p, i) => `
     <li class="flex items-start gap-3 px-4 py-2.5">
       <span class="w-6 shrink-0 pt-0.5 text-right text-xs text-slate-400">${th(i + 1)}</span>
-      <span class="min-w-0 flex-1 text-sm"><b class="block text-navy-900">${h(th(p.name))}</b>${p.position ? `<span class="text-slate-500">${h(th(p.position))}</span>` : ''}</span>
+      <span class="min-w-0 flex-1 text-sm"><b class="block text-navy-900">${h(th(publicPersonName(p.name)))}</b>${p.position ? `<span class="text-slate-500">${h(th(p.position))}</span>` : ''}</span>
       ${p.role ? `<span class="shrink-0 rounded-md bg-gold-100 px-2 py-0.5 text-[11px] font-bold text-navy-900">${h(p.role)}</span>` : ''}
     </li>`).join('')}</ul>`;
 }

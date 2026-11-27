@@ -59,6 +59,48 @@ export function fullName(s) {
   return `${s.prefix || ''}${s.first || ''} ${s.last && s.last !== '-' ? s.last : ''}`.trim();
 }
 
+/* ---------- ปิดนามสกุลบนหน้าเว็บสาธารณะ (หน้าแอดมินแสดงเต็ม) ---------- */
+
+const MASK = 'xxx';   // ความยาวคงที่ เดาความยาวนามสกุลจริงไม่ได้
+
+/** แยกเป็น "ตัวที่เห็นบนจอ" — สระบน/ล่าง วรรณยุกต์ ไม้หันอากาศ สระอำ ติดไปกับพยัญชนะหน้า ไม่ถูกตัดกลาง */
+function thaiChars(text) {
+  const out = [];
+  for (const c of String(text)) {
+    if (out.length && /[ัำ-ฺ็-๎]/.test(c)) out[out.length - 1] += c;
+    else out.push(c);
+  }
+  return out;
+}
+
+/**
+ * นามสกุล → แสดง ๓ ตัวแรก + xxx เช่น ทองสุข → ทองxxx
+ * นามสกุลสั้น (๔ ตัวลงไป) แสดงน้อยลง เพื่อให้มีส่วนที่ถูกปิดอย่างน้อย ๒ ตัว เช่น ตุพล → ตุxxx
+ */
+export function maskSurname(last) {
+  const s = String(last ?? '').trim();
+  if (!s || s === '-') return '';
+  const chars = thaiChars(s);
+  const keep = chars.length <= 1 ? 0 : Math.min(3, Math.max(1, chars.length - 2));
+  return chars.slice(0, keep).join('') + MASK;
+}
+
+/** ชื่อนักเรียนสำหรับหน้าเว็บสาธารณะ (นามสกุลถูกปิด) */
+export function publicName(s) {
+  const last = maskSurname(s.last);
+  return `${s.prefix || ''}${s.first || ''}${last ? ` ${last}` : ''}`.trim();
+}
+
+const CLERGY = /^(พระ|สามเณร|สมเด็จ|แม่ชี)/;
+
+/** ชื่อกรรมการ (ข้อความเดียว "คำนำหน้าชื่อ นามสกุล") — ปิดนามสกุลเฉพาะฆราวาส ไม่ปิดฉายาของพระ */
+export function publicPersonName(name) {
+  const s = String(name ?? '').trim();
+  const m = s.match(/^(\S+)\s+(.+)$/);
+  if (!m || CLERGY.test(s)) return s;
+  return `${m[1]} ${maskSurname(m[2])}`;
+}
+
 export function genderOf(prefix) {
   if (prefix === 'เด็กชาย' || prefix === 'นาย') return 'male';
   if (prefix === 'เด็กหญิง' || prefix === 'นางสาว' || prefix === 'นาง') return 'female';

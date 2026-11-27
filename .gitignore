@@ -1,0 +1,14 @@
+# ข้อมูลส่วนบุคคล — ห้ามขึ้น GitHub (repo และ GitHub Pages เป็นสาธารณะ)
+# ไฟล์รายชื่อเต็มเก็บไว้นอกโฟลเดอร์โปรเจกต์ เช่น ../dhamma-private/seed-2569.json
+data/
+seed*.json
+dhamma69-backup-*.json
+*.pdf
+*.xlsx
+*.xls
+*.csv
+
+# อื่น ๆ
+node_modules/
+.DS_Store
+Thumbs.db

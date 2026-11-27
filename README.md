@@ -5,14 +5,14 @@
 
 พัฒนาระบบโดย **ธุรการไทยงาม**
 
-- Repository: https://github.com/thaingamja/dhamma69
-- เว็บไซต์ (GitHub Pages): https://thaingamja.github.io/dhamma69/
-- หน้าผู้ดูแล: https://thaingamja.github.io/dhamma69/admin/
+- Repository: https://github.com/thaingam/dhamma69
+- เว็บไซต์ (GitHub Pages): https://thaingam.github.io/dhamma69/
+- หน้าผู้ดูแล: https://thaingam.github.io/dhamma69/admin/
 
 แก้งานจากเครื่องอื่น:
 
 ```powershell
-git clone https://github.com/thaingamja/dhamma69.git
+git clone https://github.com/thaingam/dhamma69.git
 ```
 
 ## โครงสร้างไฟล์
@@ -21,10 +21,11 @@ git clone https://github.com/thaingamja/dhamma69.git
 |---|---|
 | `index.html`, `assets/js/app.js` | หน้าเว็บสาธารณะ (ไม่ต้องล็อกอิน) |
 | `survey/` , `assets/js/survey-questions.js` | แบบประเมินความพึงพอใจ (ลิงก์: `…/dhamma69/survey/`) — ผลดูได้ที่ admin แท็บ **แบบประเมิน** |
+| `privacy/index.html` | ประกาศความเป็นส่วนตัว (หน้าคงที่ ไม่อ่าน Firestore) — ลิงก์จากท้ายกล่องค้นหา ท้ายเว็บ และหน้าแบบประเมิน · ถ้าเปลี่ยนวันลบข้อมูล ต้องแก้ในหน้านี้ `index.html` และ `survey/survey.js` ด้วย |
 | `admin/index.html`, `admin/admin.js` | หน้าผู้ดูแล — เพิ่ม/แก้/ลบ/ย้ายนักเรียน, กรรมการ, ตำแหน่งห้อง, หมุดแผนผัง, ประกาศ |
 | `assets/js/firebase.js` | ค่าเชื่อมต่อ Firebase + อีเมลผู้ดูแล |
 | `assets/js/utils.js` | ฟังก์ชันค้นหา เลขไทย สถิติ |
-| `data/seed-2569.json` | ข้อมูลตั้งต้น ๒๙๔ คน ๑๕ ห้อง + คำสั่ง ๐๗/๒๕๖๙ |
+| `../dhamma-private/seed-2569.json` | ข้อมูลตั้งต้น ๒๙๔ คน ๑๕ ห้อง + คำสั่ง ๐๗/๒๕๖๙ — **อยู่นอกโฟลเดอร์โปรเจกต์ ห้ามอัปขึ้น GitHub** (มีชื่อ-นามสกุลเต็มของนักเรียน) |
 | `firestore.rules` | กฎความปลอดภัย Firestore ฉบับรวม (กีฬาสี + ประชุมผู้ปกครอง + ธรรมสนามหลวง) |
 
 ข้อมูลใน Firestore ใช้ collection `dhamma_rooms`, `dhamma_site` และ `dhamma_surveys` เท่านั้น ไม่ยุ่งกับข้อมูลระบบอื่นในโปรเจกต์ sportday69
@@ -33,10 +34,11 @@ git clone https://github.com/thaingamja/dhamma69.git
 
 1. **อัปเดต Firestore Rules** — Firebase Console › Firestore Database › Rules › วางเนื้อหาไฟล์ `firestore.rules` ทั้งหมด › **Publish**
    (ของเดิมของระบบกีฬาสีและประชุมผู้ปกครองอยู่ครบ เพิ่มเฉพาะส่วน `dhamma_*`)
-2. **อัปขึ้น GitHub** — อัปทุกไฟล์ยกเว้น PDF (มี `.gitignore` กันไว้แล้ว) › Settings › Pages › Source: *Deploy from a branch* › `main` / `(root)`
+2. **อัปขึ้น GitHub** — อัปเฉพาะไฟล์ในโฟลเดอร์โปรเจกต์ ห้ามอัป PDF / ไฟล์รายชื่อ / ไฟล์สำรอง JSON
+   (`.gitignore` กันให้เฉพาะตอนใช้คำสั่ง git — **ถ้าลากไฟล์อัปผ่านหน้าเว็บ GitHub จะไม่กัน** ต้องระวังเอง) › Settings › Pages › Source: *Deploy from a branch* › `main` / `(root)`
 3. **ถ้าหน้า admin ล็อกอินไม่ได้** — ตรวจ Firebase Console › Authentication › Settings › Authorized domains ว่ามี `ชื่อผู้ใช้.github.io` แล้ว
    (ถ้าระบบกีฬาสีเดิมอยู่บน GitHub Pages บัญชีเดียวกัน มักเพิ่มไว้แล้ว)
-4. **นำเข้าข้อมูล** — เปิด `https://ชื่อผู้ใช้.github.io/ชื่อrepo/admin/` › ล็อกอิน › แท็บ **ระบบ** › **นำเข้าข้อมูลตั้งต้น** › พิมพ์ `ยืนยัน`
+4. **นำเข้าข้อมูล** — เปิด `https://ชื่อผู้ใช้.github.io/ชื่อrepo/admin/` › ล็อกอิน › แท็บ **ระบบ** › **นำเข้าข้อมูลตั้งต้น** › เลือกไฟล์ `seed-2569.json` จากเครื่อง › พิมพ์ `ยืนยัน`
 5. **ผังรวมโรงเรียน** — ภาพจาก Cloudinary ตั้งไว้เป็นค่าเริ่มต้นแล้ว (ย่อภาพอัตโนมัติ ~๓๐๐KB บนมือถือ) เปลี่ยนได้ที่แท็บ **แผนผัง**
 6. **ผังห้องสอบรายอาคาร** — วาดด้วย canvas จากข้อมูลใน `assets/js/floorplans.js` (ถอดจากภาพผังของโรงเรียน)
    ระบบรู้อาคาร/ชั้นของห้องสอบเอง ผลค้นหามีปุ่ม “ดูผังห้องสอบ” และห้องนั้นจะกระพริบ · ครบ ๑๕ ห้องใน ๓ อาคาร:
@@ -47,10 +49,11 @@ git clone https://github.com/thaingamja/dhamma69.git
 - [ ] ห้องสอบโท ประถม ห้อง ๖ — มีกรรมการแล้ว รอบัญชีรายชื่อใหม่ (ย้ายนักเรียนได้ด้วยปุ่ม “ย้ายห้อง”)
 - [ ] ผู้ช่วยกรรมการ ๗ คนเป็นผู้เข้าสอบชั้นเอก มัธยมด้วย และชื่อ “ปิยxxx นาคxxx (สะกด ๒ แบบ)” ไม่ตรงกัน — ตรวจกับคำสั่งแล้วแก้ในหน้าผู้ดูแล
 - [ ] ระเบียบผู้เข้าสอบในระบบเป็นข้อความตัวอย่าง — แก้ได้ที่แท็บ **ข้อมูลการสอบ**
+- [ ] **ลบข้อมูลภายใน ๒๕ ก.พ. ๒๕๗๐** ตามที่ประกาศไว้ในหน้าประกาศความเป็นส่วนตัว — ส่งออกสำรอง (ถ้าต้องการเก็บสถิติ) แล้วลบ `dhamma_rooms`, `dhamma_site/committee`, `dhamma_surveys` · ลบ `../dhamma-private/` และไฟล์ `dhamma69-backup-*.json` ที่ดาวน์โหลดไว้ในเครื่องด้วย
 
 ## ดูตัวอย่างก่อนนำเข้าข้อมูล
 
-เปิด `index.html?preview=seed` จะแสดงหน้าเว็บด้วยข้อมูลจากไฟล์ `data/seed-2569.json` โดยไม่อ่าน Firestore
+เปิด `index.html?preview=seed` แล้วเลือกไฟล์ `seed-2569.json` จากเครื่อง จะแสดงหน้าเว็บด้วยข้อมูลในไฟล์โดยไม่อ่าน Firestore (ไฟล์อ่านในเบราว์เซอร์เท่านั้น ไม่ถูกอัปโหลด)
 
 ทดสอบในเครื่อง (ต้องเปิดผ่าน web server เพราะใช้ ES modules):
 
@@ -64,3 +67,5 @@ npx --yes http-server -p 8080 -c-1
 
 - `apiKey` ของ Firebase อยู่ในหน้าเว็บได้ตามปกติ ความปลอดภัยมาจาก `firestore.rules` — เขียนได้เฉพาะบัญชีอีเมลผู้ดูแล
 - รายชื่อนักเรียนอ่านได้สาธารณะ (เทียบเท่าบัญชีที่ติดหน้าห้องสอบ) — แนะนำให้ลบข้อมูลหลังประกาศผลสอบ
+- หน้าเว็บสาธารณะ **ปิดนามสกุล** นักเรียนและกรรมการทุกคณะที่เป็นฆราวาส (แสดง ๓ ตัวแรก + `xxx` เช่น ทองสุข → ทองxxx · รวมถึงกรรมการฆราวาสในคณะกรรมการดำเนินการ/กองงานเลขานุการ · ไม่ปิดฉายาพระ) — ค้นด้วยนามสกุลเต็มยังได้ หน้า admin แสดงเต็ม
+  การปิดทำที่หน้าเว็บเท่านั้น ข้อมูลใน Firestore ยังเป็นนามสกุลเต็ม (ดูได้ผ่านเครื่องมือนักพัฒนา) — ฟังก์ชันอยู่ที่ `maskSurname()` ใน `assets/js/utils.js`

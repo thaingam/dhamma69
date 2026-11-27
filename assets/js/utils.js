@@ -129,6 +129,9 @@ export function escapeHtml(value) {
   })[c]);
 }
 
+/** ภาพแผนผังอาคารเริ่มต้น (Cloudinary) — ใช้เมื่อยังไม่ได้ตั้งค่าในหน้า admin */
+export const DEFAULT_MAP_URL = 'https://res.cloudinary.com/dqyxo3d2h/image/upload/v1795763223/Gemini_Generated_Image_puyezkpuyezkpuye_lsxsax.jpg';
+
 /** อนุญาตเฉพาะลิงก์ภาพ https (กันการใส่ javascript: ฯลฯ) */
 export function safeImageUrl(url) {
   try {
@@ -137,6 +140,15 @@ export function safeImageUrl(url) {
   } catch {
     return '';
   }
+}
+
+/**
+ * ลิงก์ Cloudinary แบบย่อขนาดอัตโนมัติ (ภาพต้นฉบับ ~2.7MB → ~300KB) อัตราส่วนภาพเท่าเดิม หมุดจึงอยู่ตำแหน่งเดิม
+ * ลิงก์ที่ไม่ใช่ Cloudinary หรือมีการแปลงภาพอยู่แล้ว จะคืนค่าเดิม
+ */
+export function cloudinaryVariant(url, transform) {
+  const m = String(url || '').match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(v\d+\/.+)$/);
+  return m ? `${m[1]}${transform}/${m[2]}` : url;
 }
 
 export function computeStats(rooms) {

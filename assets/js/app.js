@@ -6,6 +6,7 @@ import {
 import {
   th, formatNo, LEVELS, LEVEL_ORDER, STAGES, STAGE_SHORT, LEVEL_COLOR, levelTitle, roomTitle, roomShort,
   roomPinLabel, locationText, sortRooms, fullName, buildIndex, search, escapeHtml as h, safeImageUrl, computeStats,
+  DEFAULT_MAP_URL, cloudinaryVariant,
 } from './utils.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -91,7 +92,9 @@ function renderAll() {
 }
 
 const roomById = (id) => state.rooms.find((r) => r.id === id);
-const mapUrl = () => safeImageUrl(state.config?.mapUrl);
+const mapUrl = () => safeImageUrl(state.config?.mapUrl) || DEFAULT_MAP_URL;
+const MAP_INLINE = 'f_auto,q_auto,w_1400';   // ภาพในหน้าเว็บ (~300KB)
+const MAP_FULL = 'f_auto,q_auto';            // ภาพเต็มจอ (ความละเอียดเต็ม)
 
 /* ------------------------------------------------------------------ ประกาศ + hero */
 
@@ -461,28 +464,45 @@ function pinsHtml(activeId) {
   }).join('');
 }
 
+function mapFactsHtml() {
+  const c = state.config || {};
+  const facts = [
+    c.examBuildings && ['🏫', 'อาคารที่ใช้สอบ', c.examBuildings],
+    c.assemblyPoint && ['📣', 'จุดรวมแถวและแจกข้อสอบ', c.assemblyPoint],
+  ].filter(Boolean);
+  if (!facts.length) return '';
+  return `<div class="mb-3 grid gap-2 sm:grid-cols-2">${facts.map(([icon, label, text]) => `
+    <div class="flex items-start gap-3 rounded-2xl bg-navy-900 p-3.5 text-white">
+      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold-500/20 text-xl">${icon}</span>
+      <span class="min-w-0"><span class="block text-xs text-gold-300">${label}</span><span class="block font-semibold">${h(th(text))}</span></span>
+    </div>`).join('')}</div>`;
+}
+
 function renderMap() {
   const url = mapUrl();
   const box = $('#mapBody');
   if (!url) {
-    box.innerHTML = `<div class="card grid min-h-48 place-items-center p-6 text-center">
+    box.innerHTML = `${mapFactsHtml()}<div class="card grid min-h-48 place-items-center p-6 text-center">
       <div><p class="text-4xl">🗺️</p><p class="mt-2 font-semibold text-navy-900">แผนผังอาคารจะประกาศเร็ว ๆ นี้</p></div></div>`;
     return;
   }
   const active = roomById(state.mapRoomId);
   box.innerHTML = `
+    ${mapFactsHtml()}
     <div class="card overflow-hidden">
       <div class="relative">
         <div id="mapBox" class="relative">
-          <img src="${h(url)}" alt="แผนผังอาคารสนามสอบโรงเรียนชุมชนวัดไทยงาม" class="block w-full" loading="lazy">
+          <img src="${h(cloudinaryVariant(url, MAP_INLINE))}" alt="แผนผังสถานที่สอบธรรมศึกษา ๒๕๖๙ สนามสอบโรงเรียนชุมชนวัดไทยงาม" class="block w-full" loading="lazy">
           ${pinsHtml(state.mapRoomId)}
         </div>
         <button id="mapFull" class="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-xl bg-navy-900/85 px-3 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-navy-900">${ICON.expand} ขยายเต็มจอ</button>
       </div>
+      ${state.rooms.some((r) => r.pin) ? `
       <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-3 text-xs text-slate-600">
         ${LEVEL_ORDER.map((lv) => `<span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full" style="background:${LEVEL_COLOR[lv].bg}"></span>ชั้น${LEVELS[lv]}</span>`).join('')}
         <span class="text-slate-400">· ป = ประถม ม = มัธยม · แตะหมุดเพื่อดูห้อง</span>
-      </div>
+      </div>` : `
+      <p class="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">แตะ “ขยายเต็มจอ” เพื่อซูมดูรายละเอียด · ตำแหน่งห้องสอบแต่ละห้องจะแสดงในผลการค้นหา</p>`}
       <div id="mapInfo" class="${active ? '' : 'hidden'} border-t border-slate-100 p-4">${active ? mapInfoHtml(active) : ''}</div>
     </div>`;
   $('#mapFull').onclick = openMapDialog;
@@ -521,7 +541,7 @@ function openMapDialog() {
   const url = mapUrl();
   if (!url) return;
   state.zoom = window.innerWidth < 768 ? 2 : 0;
-  $('#mapZoomBox').innerHTML = `<img src="${h(url)}" alt="แผนผังอาคาร" class="block w-full">${pinsHtml(state.mapRoomId)}`;
+  $('#mapZoomBox').innerHTML = `<img src="${h(cloudinaryVariant(url, MAP_FULL))}" alt="แผนผังอาคาร" class="block w-full">${pinsHtml(state.mapRoomId)}`;
   renderZoom();
   $('#mapDialog').showModal();
   const active = $('#mapZoomBox .is-active');

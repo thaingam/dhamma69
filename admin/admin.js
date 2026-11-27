@@ -9,6 +9,7 @@ import {
 import {
   th, toArabic, formatNo, LEVELS, STAGES, LEVEL_COLOR, roomTitle, roomShort, roomPinLabel,
   locationText, sortRooms, fullName, escapeHtml as h, safeImageUrl, computeStats, normalize,
+  DEFAULT_MAP_URL, cloudinaryVariant,
 } from '../assets/js/utils.js';
 
 const auth = getAuth(app);
@@ -253,7 +254,8 @@ function editorHtml() {
         <fieldset class="space-y-3">
           <legend class="font-display text-navy-900">ตำแหน่งห้องสอบ</legend>
           <div class="grid gap-3 sm:grid-cols-3">
-            <div><label class="lbl">อาคาร</label><input class="inp" data-loc="building" value="${h(d.location.building)}" placeholder="เช่น อาคาร ๒"></div>
+            <div><label class="lbl">อาคาร</label><input class="inp" data-loc="building" list="dlBuilding" value="${h(d.location.building)}" placeholder="เช่น อาคาร ๒">
+              <datalist id="dlBuilding"><option value="อาคาร ๒"><option value="อาคาร ๓"><option value="อาคาร ๔"></datalist></div>
             <div><label class="lbl">ชั้น</label><input class="inp" data-loc="floor" value="${h(d.location.floor)}" placeholder="เช่น 1"></div>
             <div><label class="lbl">ชื่อห้องจริง</label><input class="inp" data-loc="roomName" value="${h(d.location.roomName)}" placeholder="เช่น ห้อง ป.๔/๑"></div>
           </div>
@@ -513,17 +515,21 @@ function addRoomDialog() {
 function renderMap() {
   const view = $('#appView');
   const rooms = roomsSorted();
-  const url = safeImageUrl(state.config?.mapUrl);
+  const url = safeImageUrl(state.config?.mapUrl) || DEFAULT_MAP_URL;
+  const c = state.config || {};
   if (!state.mapRoomId || !state.rooms.has(state.mapRoomId)) state.mapRoomId = rooms[0]?.id || '';
   view.innerHTML = `
     <div class="space-y-4">
       <div class="card space-y-3 p-4">
         <h2 class="font-display text-lg text-navy-900">ภาพแผนผังอาคาร</h2>
-        <p class="text-sm text-slate-600">อัปโหลดภาพขึ้น Cloudinary แล้วคัดลอกลิงก์ภาพ (ขึ้นต้นด้วย https://res.cloudinary.com/…) มาวางที่นี่</p>
-        <div class="flex flex-col gap-2 sm:flex-row">
-          <input class="inp" id="mapUrl" type="url" placeholder="https://res.cloudinary.com/..." value="${h(state.config?.mapUrl || '')}">
-          <button class="btn btn-navy shrink-0" id="btnSaveMap">บันทึกลิงก์</button>
+        <p class="text-sm text-slate-600">อัปโหลดภาพขึ้น Cloudinary แล้วคัดลอกลิงก์ภาพ (ขึ้นต้นด้วย https://res.cloudinary.com/…) มาวางที่นี่ — ถ้าเว้นว่าง จะใช้ภาพแผนผังเริ่มต้นของโรงเรียน</p>
+        <div><label class="lbl">ลิงก์ภาพแผนผัง</label>
+          <input class="inp" id="mapUrl" type="url" placeholder="https://res.cloudinary.com/..." value="${h(c.mapUrl || DEFAULT_MAP_URL)}"></div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div><label class="lbl">อาคารที่ใช้สอบ (แสดงเหนือแผนผัง)</label><input class="inp" id="examBuildings" value="${h(c.examBuildings || '')}" placeholder="เช่น อาคาร ๒ · อาคาร ๓ · อาคาร ๔"></div>
+          <div><label class="lbl">จุดรวมแถวและแจกข้อสอบ</label><input class="inp" id="assemblyPoint" value="${h(c.assemblyPoint || '')}" placeholder="เช่น ลานหน้าอาคาร ๔"></div>
         </div>
+        <button class="btn btn-navy" id="btnSaveMap">บันทึกข้อมูลแผนผัง</button>
       </div>
       <div class="card space-y-3 p-4">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -535,7 +541,7 @@ function renderMap() {
         ${url ? `
           <div class="overflow-auto rounded-xl border border-slate-200">
             <div id="mapBox" class="relative mx-auto min-w-[640px] cursor-crosshair select-none">
-              <img src="${h(url)}" alt="แผนผังอาคาร" class="block w-full" draggable="false">
+              <img src="${h(cloudinaryVariant(url, 'f_auto,q_auto,w_1400'))}" alt="แผนผังอาคาร" class="block w-full" draggable="false">
               ${rooms.filter((r) => r.pin).map((r) => {
                 const c = LEVEL_COLOR[r.level];
                 return `<span class="map-pin ${r.id === state.mapRoomId ? 'is-active pin-pulse' : ''}" style="left:${r.pin.x}%;top:${r.pin.y}%;background:${c.bg};color:${c.fg}">${h(roomPinLabel(r))}</span>`;
@@ -549,8 +555,13 @@ function renderMap() {
     const raw = $('#mapUrl').value.trim();
     if (raw && !safeImageUrl(raw)) { toast('ลิงก์ต้องขึ้นต้นด้วย https://', 'error'); return; }
     try {
-      await setDoc(siteRef('config'), { mapUrl: raw, updatedAt: serverTimestamp() }, { merge: true });
-      toast('บันทึกลิงก์แผนผังแล้ว');
+      await setDoc(siteRef('config'), {
+        mapUrl: raw,
+        examBuildings: $('#examBuildings').value.trim(),
+        assemblyPoint: $('#assemblyPoint').value.trim(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      toast('บันทึกข้อมูลแผนผังแล้ว');
       setTimeout(renderMap, 300);
     } catch (err) { toast(errText(err), 'error'); }
   };

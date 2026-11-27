@@ -10,6 +10,7 @@ import {
 } from './utils.js';
 import { FLOORPLANS, findPlan, effectiveLocation, planTheme } from './floorplans.js';
 import { mountFloorPlan } from './floorplan-canvas.js';
+import { icon } from './icons.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -144,7 +145,7 @@ function renderHero() {
   if (c.fieldCode) $('#heroCode').textContent = `รหัสสนาม ${th(c.fieldCode)}`;
   if (c.examDateText) $('#heroDate').textContent = th(c.examDateText);
   if (c.venue) $('#heroSub').innerHTML = [...chunks(c.subtitle, /\s·\s/), ...chunks(c.venue, /\s·\s/)].join(' · ');
-  if (c.address) $('#heroAddr').innerHTML = `<span aria-hidden="true">📍</span><span>${chunks(c.address, /\s+/).join(' ')}</span>`;
+  if (c.address) $('#heroAddr').innerHTML = `${icon('pin', 'mt-0.5 h-3.5 w-3.5 shrink-0 text-gold-300 sm:h-4 sm:w-4')}<span>${chunks(c.address, /\s+/).join(' ')}</span>`;
   tickCountdown();
 }
 
@@ -269,9 +270,9 @@ function runSearch() {
   if (!raw.trim()) {
     box.innerHTML = `
       <div class="grid grid-cols-3 gap-2 text-center text-xs text-slate-500">
-        <div class="rounded-xl bg-cream p-3"><p class="text-lg">🔎</p>พิมพ์ชื่อหรือเลขที่สอบ</div>
-        <div class="rounded-xl bg-cream p-3"><p class="text-lg">🏫</p>รู้ห้องสอบ + ตำแหน่ง</div>
-        <div class="rounded-xl bg-cream p-3"><p class="text-lg">📍</p>ดูหมุดบนแผนผัง</div>
+        <div class="rounded-xl bg-cream p-3">${icon('search', 'mx-auto mb-1.5 h-6 w-6 text-gold-600')}พิมพ์ชื่อหรือเลขที่สอบ</div>
+        <div class="rounded-xl bg-cream p-3">${icon('school', 'mx-auto mb-1.5 h-6 w-6 text-gold-600')}รู้ห้องสอบ + ตำแหน่ง</div>
+        <div class="rounded-xl bg-cream p-3">${icon('pin', 'mx-auto mb-1.5 h-6 w-6 text-gold-600')}ดูหมุดบนแผนผัง</div>
       </div>`;
     return;
   }
@@ -407,7 +408,7 @@ function renderSchoolPicker() {
   if (!schools.some((s) => s.name === state.school.name)) state.school.name = null;
   $('#pickSchool').innerHTML = schools.map((s) => `
     <button class="chip flex items-center gap-2 text-left ${s.name === state.school.name ? 'active' : ''}" data-school="${h(s.name)}">
-      <span class="text-lg">🏫</span>
+      ${icon('school', 'h-5 w-5 shrink-0 opacity-70')}
       <span class="min-w-0 flex-1 leading-snug">${h(th(s.name))}</span>
       <span class="shrink-0 rounded-full bg-black/5 px-2 py-0.5 text-xs">${th(s.total)} คน</span>
     </button>`).join('');
@@ -777,13 +778,13 @@ const planRooms = (plan) => plan.floors.flatMap((f) => f.rooms.filter((r) => r.r
 function mapFactsHtml() {
   const c = state.config || {};
   const facts = [
-    c.examBuildings && ['🏫', 'อาคารที่ใช้สอบ', c.examBuildings],
-    c.assemblyPoint && ['📣', 'จุดรวมแถวและแจกข้อสอบ', c.assemblyPoint],
+    c.examBuildings && ['school', 'อาคารที่ใช้สอบ', c.examBuildings],
+    c.assemblyPoint && ['megaphone', 'จุดรวมแถวและแจกข้อสอบ', c.assemblyPoint],
   ].filter(Boolean);
   if (!facts.length) return '';
-  return `<div class="mb-3 grid gap-2 sm:grid-cols-2">${facts.map(([icon, label, text]) => `
+  return `<div class="mb-3 grid gap-2 sm:grid-cols-2">${facts.map(([name, label, text]) => `
     <div class="flex items-start gap-3 rounded-2xl bg-navy-900 p-3.5 text-white">
-      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold-500/20 text-xl">${icon}</span>
+      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold-500/20 text-gold-300">${icon(name, 'h-5 w-5')}</span>
       <span class="min-w-0"><span class="block text-xs text-gold-300">${label}</span><span class="block font-semibold">${h(th(text))}</span></span>
     </div>`).join('')}</div>`;
 }

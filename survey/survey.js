@@ -4,6 +4,7 @@ import {
   collection, addDoc, doc, getDoc, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 import { th, escapeHtml as h } from '../assets/js/utils.js';
+import { icon } from '../assets/js/icons.js';
 import {
   COL_SURVEYS, SURVEY_VERSION, TEXT_MAX, GROUPS, SECTIONS, QUESTIONS, SCALE,
 } from '../assets/js/survey-questions.js';
@@ -36,7 +37,7 @@ function renderForm() {
       <div class="mt-3 grid gap-2 sm:grid-cols-2" id="groups">
         ${GROUPS.map((g) => `
           <button class="grp ${state.group === g.id ? 'on' : ''}" data-group="${g.id}">
-            <span class="text-2xl">${g.icon}</span><span>${h(g.label)}</span>
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy-900 text-gold-300">${icon(g.icon, 'h-6 w-6')}</span><span>${h(g.label)}</span>
           </button>`).join('')}
       </div>
     </section>
@@ -54,7 +55,7 @@ function renderForm() {
               <div class="mt-2.5 grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="${h(q.text)}">
                 ${SCALE.map((s) => `
                   <button class="opt ${state.ans[q.id] === s.v ? 'on' : ''}" data-q="${q.id}" data-v="${s.v}" role="radio" aria-checked="${state.ans[q.id] === s.v}">
-                    <span class="text-lg leading-none">${s.emoji}</span>
+                    ${icon(s.face, 'h-6 w-6')}
                     <span class="font-display text-lg leading-none">${th(s.v)}</span>
                     <span class="text-[10px] leading-tight opacity-80">${s.label}</span>
                   </button>`).join('')}
@@ -67,7 +68,7 @@ function renderForm() {
       <div>
         <p class="text-xs font-bold tracking-widest text-gold-600">ตอนที่ ๓</p>
         <h2 class="font-display text-xl text-navy-900">ความคิดเห็นเพิ่มเติม <span class="text-sm font-normal text-slate-500">(ไม่บังคับ)</span></h2>
-        <p class="mt-1 text-xs text-slate-500">🔒 แบบประเมินไม่เก็บชื่อผู้ตอบ โปรดอย่าพิมพ์ชื่อ เบอร์โทร หรือข้อมูลส่วนตัวในช่องนี้ · ผลใช้เพื่อปรับปรุงการจัดสอบ และลบภายใน ๒๕ ก.พ. ๒๕๗๐ ·
+        <p class="mt-1 text-xs text-slate-500">${icon('lock', '-mt-0.5 inline h-3.5 w-3.5 text-gold-600')} แบบประเมินไม่เก็บชื่อผู้ตอบ โปรดอย่าพิมพ์ชื่อ เบอร์โทร หรือข้อมูลส่วนตัวในช่องนี้ · ผลใช้เพื่อปรับปรุงการจัดสอบ และลบภายใน ๒๕ ก.พ. ๒๕๗๐ ·
           <a href="../privacy/" class="font-semibold text-navy-700 underline decoration-gold-400 underline-offset-2">ประกาศความเป็นส่วนตัว</a></p>
       </div>
       <div><label class="mb-1 block text-sm font-semibold text-navy-800" for="like">สิ่งที่ประทับใจ</label>
@@ -100,11 +101,11 @@ function renderForm() {
   updateBar();
 }
 
-function renderMessage(icon, title, body, again = false) {
+function renderMessage(sym, title, body, again = false) {
   $('#bar').classList.add('hidden');
   $('#app').innerHTML = `
     <div class="card p-6 text-center sm:p-10">
-      <p class="text-5xl">${icon}</p>
+      <div class="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gold-100 text-gold-600">${icon(sym, 'h-11 w-11', 1.8)}</div>
       <h2 class="mt-3 font-display text-2xl text-navy-900">${title}</h2>
       <p class="mx-auto mt-2 max-w-md text-slate-600">${body}</p>
       <div class="mt-6 flex flex-wrap justify-center gap-2">
@@ -121,7 +122,7 @@ function renderMessage(icon, title, body, again = false) {
 }
 
 function thanks() {
-  renderMessage('🙏', 'ขออนุโมทนาและขอบคุณ',
+  renderMessage('heart', 'ขออนุโมทนาและขอบคุณ',
     'ที่สละเวลาร่วมประเมิน ความคิดเห็นของท่านจะนำไปพัฒนาการจัดสอบธรรมศึกษาของสนามสอบโรงเรียนชุมชนวัดไทยงามให้ดียิ่งขึ้น', true);
 }
 
@@ -178,7 +179,7 @@ $('#btnSubmit').addEventListener('click', async () => {
     } catch { /* อ่านไม่ได้ ให้ลองส่ง แล้วให้ rules เป็นผู้ตัดสิน */ }
   }
   if (!open) {
-    renderMessage('📋', 'ปิดรับแบบประเมินแล้ว', 'ขออนุโมทนาและขอบคุณทุกท่านที่ให้ความสนใจ');
+    renderMessage('clipboard', 'ปิดรับแบบประเมินแล้ว', 'ขออนุโมทนาและขอบคุณทุกท่านที่ให้ความสนใจ');
   } else if (localStorage.getItem(DONE_KEY)) {
     thanks();
   } else {

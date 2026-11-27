@@ -71,6 +71,9 @@
     .shot figcaption small { display: block; margin-top: .6mm; font-size: 9pt; font-weight: 400; color: #475569; }
     .tag { display: inline-block; margin-bottom: 1mm; font-size: 8.5pt; font-weight: 800; padding: .3mm 2.2mm; border-radius: 1.5mm; background: var(--navy-900); color: var(--gold-300); }
     .more { margin-top: 4.5mm; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.8mm 2.2mm; }
+    .ic { width: 1.05em; height: 1.05em; vertical-align: -.16em; flex: none; }
+    .qr .scan .ic { color: var(--gold-600); }
+    .more span .ic { color: var(--gold-600); }
     .more span { font-size: 9.5pt; font-weight: 600; padding: .9mm 3mm; border-radius: 10mm; background: var(--cream); border: .35mm solid var(--gold-300); }
 
     /* แถบล่าง */
@@ -92,7 +95,7 @@
 </head>
 <body>
   <div class="toolbar">
-    <button onclick="print()">🖨️ พิมพ์โปสเตอร์ / บันทึก PDF</button>
+    <button onclick="print()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg> พิมพ์โปสเตอร์ / บันทึก PDF</button>
     <a href="../">← กลับหน้าหลัก</a>
     <span>ตั้งค่าพิมพ์: กระดาษ A4 · ขอบ "ไม่มี" · เปิด "กราฟิกพื้นหลัง"</span>
   </div>
@@ -119,7 +122,7 @@
         </ol>
       </div>
       <div class="qr">
-        <p class="scan">📱 สแกนเลย</p>
+        <p class="scan"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2" width="11" height="20" rx="2.2"/><path d="M11 18.5h2"/></svg> สแกนเลย</p>
         <img src="img/qr-site.svg" alt="QR Code เว็บไซต์ค้นหาห้องสอบ">
         <p class="url">thaingam.github.io/dhamma69</p>
       </div>
@@ -142,7 +145,7 @@
         </figure>
       </div>
       <div class="more">
-        <span>🗺️ แผนผังโรงเรียน</span><span>⏰ ตารางสอบ + นับถอยหลัง</span><span>📢 ประกาศด่วน</span><span>👥 กรรมการกำกับห้อง</span>
+        <span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg> แผนผังโรงเรียน</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg> ตารางสอบ + นับถอยหลัง</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5v3a1 1 0 0 0 1 1h2.5L12 19V5L6.5 9.5H4a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6M18.8 6.2a8 8 0 0 1 0 11.6"/></svg> ประกาศด่วน</span><span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></svg> กรรมการกำกับห้อง</span>
       </div>
     </section>
 
@@ -150,7 +153,7 @@
       <div class="sq"><img src="img/qr-survey.svg" alt="QR Code แบบประเมิน"></div>
       <div>
         <b>สอบเสร็จแล้ว ร่วมทำแบบประเมิน ๒ นาที</b>
-        <p>สแกน QR ด้านซ้าย · ไม่ต้องระบุชื่อ — ความคิดเห็นของท่านช่วยพัฒนาสนามสอบ<br>🔒 ภาพตัวอย่างใช้ชื่อสมมติ · บนเว็บแสดงนามสกุลเพียงบางส่วน</p>
+        <p>สแกน QR ด้านซ้าย · ไม่ต้องระบุชื่อ — ความคิดเห็นของท่านช่วยพัฒนาสนามสอบ<br><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg> ภาพตัวอย่างใช้ชื่อสมมติ · บนเว็บแสดงนามสกุลเพียงบางส่วน</p>
       </div>
       <div class="dev">
         <img src="../assets/img/favicon.svg" alt="" style="height:11mm">

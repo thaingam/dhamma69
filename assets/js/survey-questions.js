@@ -6,11 +6,11 @@ export const SURVEY_VERSION = 1;
 export const TEXT_MAX = 1000;
 
 export const GROUPS = [
-  { id: 'monk', label: 'พระภิกษุ / พระกรรมการ', icon: '🙏' },
-  { id: 'teacher', label: 'ครู / กรรมการคุมสอบ', icon: '🧑‍🏫' },
-  { id: 'student', label: 'นักเรียนผู้เข้าสอบ', icon: '🧑‍🎓' },
-  { id: 'helper', label: 'นักเรียนผู้ช่วยกรรมการ', icon: '🙋' },
-  { id: 'other', label: 'ผู้ปกครอง / อื่น ๆ', icon: '👥' },
+  { id: 'monk', label: 'พระภิกษุ / พระกรรมการ', icon: 'wheel' },
+  { id: 'teacher', label: 'ครู / กรรมการคุมสอบ', icon: 'teacher' },
+  { id: 'student', label: 'นักเรียนผู้เข้าสอบ', icon: 'student' },
+  { id: 'helper', label: 'นักเรียนผู้ช่วยกรรมการ', icon: 'helper' },
+  { id: 'other', label: 'ผู้ปกครอง / อื่น ๆ', icon: 'users' },
 ];
 
 export const SECTIONS = [
@@ -52,11 +52,11 @@ export const SECTIONS = [
 export const QUESTIONS = SECTIONS.flatMap((s) => s.items);
 
 export const SCALE = [
-  { v: 5, label: 'มากที่สุด', emoji: '😍' },
-  { v: 4, label: 'มาก', emoji: '😊' },
-  { v: 3, label: 'ปานกลาง', emoji: '🙂' },
-  { v: 2, label: 'น้อย', emoji: '😐' },
-  { v: 1, label: 'น้อยที่สุด', emoji: '🙁' },
+  { v: 5, label: 'มากที่สุด', face: 'face5' },
+  { v: 4, label: 'มาก', face: 'face4' },
+  { v: 3, label: 'ปานกลาง', face: 'face3' },
+  { v: 2, label: 'น้อย', face: 'face2' },
+  { v: 1, label: 'น้อยที่สุด', face: 'face1' },
 ];
 
 /** แปลผลค่าเฉลี่ย (เกณฑ์มาตรฐาน ๕ ระดับ) */

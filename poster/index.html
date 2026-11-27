@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>โปสเตอร์ QR ค้นหาห้องสอบ · สนามสอบธรรมศึกษา ๒๕๖๙</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pridi:wght@400;600;700&family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy-950: #06142A; --navy-900: #0B1F3A; --navy-800: #13294B; --navy-700: #1D3A66;
+      --gold-600: #B88A1B; --gold-500: #C9A227; --gold-400: #D9B84A; --gold-300: #E6C766; --gold-100: #FBF1D0;
+      --cream: #FBF7EC;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; }
+    body { font-family: 'Sarabun', sans-serif; color: var(--navy-900); background: #8A94A6; }
+    .display { font-family: 'Pridi', 'Sarabun', serif; }
+
+    /* แถบเครื่องมือ (เฉพาะบนจอ) */
+    .toolbar { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; align-items: center; justify-content: center; padding: 10px; background: var(--navy-950); color: #fff; font-size: 14px; }
+    .toolbar button, .toolbar a { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 8px 16px; cursor: pointer; text-decoration: none; }
+    .toolbar button { background: var(--gold-500); color: var(--navy-950); }
+    .toolbar a { background: rgba(255,255,255,.12); color: #fff; }
+    .toolbar span { opacity: .7; }
+
+    /* แผ่น A4 */
+    .sheet { width: 210mm; height: 297mm; margin: 14px auto 40px; background: #fff; position: relative; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+    .dots { background-image: radial-gradient(rgba(230,199,102,.22) 1px, transparent 1px); background-size: 3.2mm 3.2mm; }
+
+    /* หัวโปสเตอร์ */
+    .head { position: relative; color: #fff; padding: 6.5mm 12mm 6mm; display: flex; align-items: center; gap: 6mm;
+      background: radial-gradient(circle at 12% 20%, rgba(201,162,39,.25), transparent 45%), linear-gradient(160deg, var(--navy-800), var(--navy-900) 55%, var(--navy-950)); }
+    .head .wheel { position: absolute; right: -18mm; top: -16mm; width: 75mm; opacity: .09; }
+    .head .logo { height: 26mm; width: auto; background: #fff; border-radius: 4mm; padding: 1.6mm; box-shadow: 0 0 0 .8mm var(--gold-400); position: relative; }
+    .head .t1 { font-size: 11pt; color: var(--gold-300); letter-spacing: .02em; margin: 0; }
+    .head h1 { font-size: 29pt; line-height: 1.12; margin: 1mm 0 1.5mm; }
+    .gold { background: linear-gradient(180deg, #F4DE8F, #D9B84A 55%, #B88A1B); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .head .t2 { font-size: 13pt; margin: 0; color: rgba(255,255,255,.9); }
+    .head .date { display: inline-block; margin-top: 2.5mm; font-size: 11.5pt; font-weight: 700; color: var(--navy-950); background: var(--gold-300); border-radius: 2mm; padding: .6mm 3mm; }
+
+    /* ส่วน QR */
+    .hero { display: grid; grid-template-columns: 1fr 54mm; gap: 7mm; padding: 5mm 12mm 4.5mm; align-items: center; background: var(--cream); }
+    .hero h2 { font-size: 22pt; line-height: 1.2; margin: 0 0 3.5mm; }
+    .hero h2 em { font-style: normal; color: var(--gold-600); }
+    .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 2.4mm; }
+    .steps li { display: flex; align-items: center; gap: 3.5mm; font-size: 13.5pt; font-weight: 600; }
+    .steps b { flex: none; width: 10mm; height: 10mm; border-radius: 50%; display: grid; place-items: center; background: var(--navy-900); color: var(--gold-300); font-family: 'Pridi', serif; font-size: 15pt; }
+    .steps small { display: block; font-size: 10pt; font-weight: 400; color: #475569; }
+    .qr { background: #fff; border-radius: 5mm; padding: 3.5mm; text-align: center; box-shadow: 0 0 0 1.2mm var(--gold-500), 0 3mm 8mm rgba(11,31,58,.18); }
+    .qr .scan { margin: -1mm 0 2mm; font-family: 'Pridi', serif; font-size: 17pt; font-weight: 700; color: var(--navy-900); }
+    .qr img { width: 100%; display: block; }
+    .qr .url { margin: 1.5mm 0 0; font-size: 8.5pt; font-weight: 700; color: var(--navy-700); white-space: nowrap; }
+
+    /* ภาพฟีเจอร์ */
+    .feat { padding: 4mm 12mm 3mm; flex: none; }
+    .feat .title { display: flex; align-items: center; gap: 3mm; margin: 0 0 3mm; font-size: 15pt; }
+    .feat .title::after { content: ''; flex: 1; height: .5mm; background: linear-gradient(90deg, var(--gold-400), transparent); }
+    .phones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+    .shot { margin: 0; display: flex; flex-direction: column; align-items: center; }
+    /* กรอบมือถือ */
+    .phone { position: relative; width: 43mm; padding: 4mm 1.7mm 1.7mm; border-radius: 7.5mm; background: linear-gradient(145deg, #2A3446, #0E1522);
+      box-shadow: 0 0 0 .35mm #4B5568, 0 3mm 7mm rgba(11,31,58,.28); }
+    .phone::before { content: ''; position: absolute; top: 1.2mm; left: 50%; width: 9mm; height: 1.6mm; margin-left: -4.5mm; border-radius: 2mm; background: #000; box-shadow: inset 0 0 0 .25mm #3A4458; }
+    .phone .scr { border-radius: 5.9mm; overflow: hidden; background: #fff; aspect-ratio: 390 / 845; }
+    .phone .scr img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+    .shot figcaption { margin-top: 2.6mm; text-align: center; font-size: 10.5pt; font-weight: 700; line-height: 1.3; }
+    .shot figcaption small { display: block; margin-top: .6mm; font-size: 9pt; font-weight: 400; color: #475569; }
+    .tag { display: inline-block; margin-bottom: 1mm; font-size: 8.5pt; font-weight: 800; padding: .3mm 2.2mm; border-radius: 1.5mm; background: var(--navy-900); color: var(--gold-300); }
+    .more { margin-top: 4.5mm; display: flex; flex-wrap: wrap; justify-content: center; gap: 1.8mm 2.2mm; }
+    .more span { font-size: 9.5pt; font-weight: 600; padding: .9mm 3mm; border-radius: 10mm; background: var(--cream); border: .35mm solid var(--gold-300); }
+
+    /* แถบล่าง */
+    .foot { margin-top: auto; display: grid; grid-template-columns: 22mm 1fr auto; gap: 5mm; align-items: center; padding: 3.5mm 12mm; background: var(--navy-900); color: #fff; }
+    .foot .sq { background: #fff; border-radius: 2mm; padding: 1.2mm; }
+    .foot .sq img { width: 100%; display: block; }
+    .foot b { color: var(--gold-300); font-size: 12pt; }
+    .foot p { margin: 0; font-size: 9.5pt; color: rgba(255,255,255,.8); line-height: 1.45; }
+    .foot .dev { text-align: right; }
+    .foot .dev p { font-size: 8.5pt; color: rgba(255,255,255,.55); }
+
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { margin: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="print()">🖨️ พิมพ์โปสเตอร์ / บันทึก PDF</button>
+    <a href="../">← กลับหน้าหลัก</a>
+    <span>ตั้งค่าพิมพ์: กระดาษ A4 · ขอบ "ไม่มี" · เปิด "กราฟิกพื้นหลัง"</span>
+  </div>
+
+  <main class="sheet">
+    <header class="head">
+      <img class="wheel" src="../assets/img/favicon.svg" alt="">
+      <img class="logo" src="https://res.cloudinary.com/djkbdwnsc/image/upload/f_png,q_auto,h_360/v1786978522/next-fullStack/Logo-thaingam_1_k2iec7.png" alt="ตราโรงเรียนชุมชนวัดไทยงาม">
+      <div style="position:relative">
+        <p class="t1">สนามสอบจุดที่ ๔ · รหัสสนาม ๒๐๗๐๓๐</p>
+        <h1 class="display"><span class="gold">สนามสอบธรรมศึกษา</span> ๒๕๖๙</h1>
+        <p class="t2">โรงเรียนชุมชนวัดไทยงาม อำเภอหนองแค จังหวัดสระบุรี</p>
+        <span class="date">วันอังคารที่ ๑ ธันวาคม ๒๕๖๙</span>
+      </div>
+    </header>
+
+    <section class="hero dots">
+      <div>
+        <h2 class="display">ไม่รู้ว่าสอบห้องไหน?<br><em>สแกนเลย รู้ใน ๑๐ วินาที</em></h2>
+        <ol class="steps">
+          <li><b>๑</b><div>สแกน QR Code ด้วยกล้องมือถือ<small>ไม่ต้องติดตั้งแอป ไม่ต้องสมัคร</small></div></li>
+          <li><b>๒</b><div>พิมพ์ชื่อ หรือเลขที่สอบ<small>เช่น ๑๐๐๐๑ · ไม่ต้องพิมพ์คำนำหน้า</small></div></li>
+          <li><b>๓</b><div>รู้ห้องสอบ อาคาร ชั้น พร้อมผัง<small>ห้องของคุณจะกระพริบบนแผนผัง</small></div></li>
+        </ol>
+      </div>
+      <div class="qr">
+        <p class="scan">📱 สแกนเลย</p>
+        <img src="img/qr-site.svg" alt="QR Code เว็บไซต์ค้นหาห้องสอบ">
+        <p class="url">thaingam.github.io/dhamma69</p>
+      </div>
+    </section>
+
+    <section class="feat">
+      <h3 class="title display">เว็บไซต์ทำอะไรได้บ้าง</h3>
+      <div class="phones">
+        <figure class="shot">
+          <div class="phone"><div class="scr"><img src="img/m-search.png" alt="ตัวอย่างการค้นหาห้องสอบบนมือถือ"></div></div>
+          <figcaption><span class="tag">๑ ค้นหา</span><br>พิมพ์ชื่อ รู้ห้องสอบทันที<small>เลขที่สอบ · อาคาร · ชั้น</small></figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="phone"><div class="scr"><img src="img/m-plan.png" alt="ตัวอย่างผังอาคารบนมือถือ"></div></div>
+          <figcaption><span class="tag">๒ ดูผัง</span><br>ห้องของคุณกระพริบบนผัง<small>แชร์ภาพผังเข้าไลน์ได้</small></figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="phone"><div class="scr"><img src="img/m-school.png" alt="ตัวอย่างรายชื่อตามโรงเรียนบนมือถือ"></div></div>
+          <figcaption><span class="tag">๓ สำหรับครู</span><br>ดูนักเรียนทั้งโรงเรียน<small>แยกตามห้อง · พิมพ์บัญชีได้</small></figcaption>
+        </figure>
+      </div>
+      <div class="more">
+        <span>🗺️ แผนผังโรงเรียน</span><span>⏰ ตารางสอบ + นับถอยหลัง</span><span>📢 ประกาศด่วน</span><span>👥 กรรมการกำกับห้อง</span>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div class="sq"><img src="img/qr-survey.svg" alt="QR Code แบบประเมิน"></div>
+      <div>
+        <b>สอบเสร็จแล้ว ร่วมทำแบบประเมิน ๒ นาที</b>
+        <p>สแกน QR ด้านซ้าย · ไม่ต้องระบุชื่อ — ความคิดเห็นของท่านช่วยพัฒนาสนามสอบ<br>🔒 ภาพตัวอย่างใช้ชื่อสมมติ · บนเว็บแสดงนามสกุลเพียงบางส่วน</p>
+      </div>
+      <div class="dev">
+        <img src="../assets/img/favicon.svg" alt="" style="height:11mm">
+        <p>ไม่ใช่เว็บไซต์ทางการ<br>ของสนามหลวงแผนกธรรม</p>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>

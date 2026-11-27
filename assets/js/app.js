@@ -113,6 +113,13 @@ function renderAll() {
 
 const roomById = (id) => state.rooms.find((r) => r.id === id);
 const roomLoc = (room) => locationText(effectiveLocation(room));
+// แบ่งข้อความเป็นช่วง ๆ (inline-block) ให้ขึ้นบรรทัดใหม่ระหว่างช่วงเท่านั้น ไม่ตัดกลางคำ (เช่น ชำนาญเพ็ญ|ชาติ)
+// max-w-full: ถ้าช่วงไหนยาวเกินจอจริง ๆ ยังตัดภายในช่วงได้ ไม่ล้นกล่อง
+const chunks = (text, sep = /\s·\s/) => String(text || '').split(sep).map((t) => t.trim()).filter(Boolean)
+  .map((t) => `<span class="inline-block max-w-full">${h(th(t))}</span>`);
+// keep: ตัดบรรทัดได้เฉพาะที่ " · " และหน้าวงเล็บ — "อาคาร ๒ | (ชำนาญเพ็ญชาติ) · | ชั้น ๒"
+const keep = (text) => String(text || '').split(/(\s·\s|\s(?=\())/)
+  .map((t, i) => (i % 2 ? (t.includes('·') ? ' · ' : ' ') : t && `<span class="inline-block max-w-full">${h(th(t))}</span>`)).join('');
 const mapUrl = () => safeImageUrl(state.config?.mapUrl) || DEFAULT_MAP_URL;
 const MAP_INLINE = 'f_auto,q_auto,w_1400';   // ภาพในหน้าเว็บ (~300KB)
 const MAP_FULL = 'f_auto,q_auto';            // ภาพเต็มจอ (ความละเอียดเต็ม)
@@ -136,9 +143,6 @@ function renderHero() {
   const c = state.config || {};
   if (c.fieldCode) $('#heroCode').textContent = `รหัสสนาม ${th(c.fieldCode)}`;
   if (c.examDateText) $('#heroDate').textContent = th(c.examDateText);
-  // แบ่งเป็นช่วง ๆ (inline-block) ให้ขึ้นบรรทัดใหม่ระหว่างช่วงเท่านั้น ไม่ตัดกลางคำ
-  const chunks = (text, sep) => String(text || '').split(sep).map((t) => t.trim()).filter(Boolean)
-    .map((t) => `<span class="inline-block">${h(th(t))}</span>`);
   if (c.venue) $('#heroSub').innerHTML = [...chunks(c.subtitle, /\s·\s/), ...chunks(c.venue, /\s·\s/)].join(' · ');
   if (c.address) $('#heroAddr').innerHTML = `<span aria-hidden="true">📍</span><span>${chunks(c.address, /\s+/).join(' ')}</span>`;
   tickCountdown();
@@ -212,8 +216,8 @@ function roomBanner(room) {
           <div><p class="text-[11px] font-bold leading-none">ห้องสอบที่</p><p class="font-display text-4xl leading-none">${th(room.roomNo)}</p></div>
         </div>
         <div class="min-w-0">
-          <p class="font-display text-lg leading-snug text-gold-300">${h(levelTitle(room))}</p>
-          <p class="mt-1 flex items-start gap-1 text-sm text-white/85">${ICON.pin}<span>${loc ? h(loc) : 'ตำแหน่งห้องจะแจ้งให้ทราบ'}</span></p>
+          <p class="font-display text-lg leading-snug text-gold-300">${keep(levelTitle(room))}</p>
+          <p class="mt-1 flex items-start gap-1 text-sm text-white/85">${ICON.pin}<span>${loc ? keep(loc) : 'ตำแหน่งห้องจะแจ้งให้ทราบ'}</span></p>
           ${room.location?.note ? `<p class="mt-0.5 text-xs text-white/60">${h(th(room.location.note))}</p>` : ''}
         </div>
       </div>
@@ -248,8 +252,8 @@ function resultCard(hit, open) {
         <dl class="grid grid-cols-2 gap-3 text-sm">
           <div class="rounded-xl bg-cream p-3"><dt class="text-xs text-slate-500">เลขที่สอบ</dt><dd class="font-display text-lg text-navy-900">${formatNo(s.no)}</dd></div>
           <div class="rounded-xl bg-cream p-3"><dt class="text-xs text-slate-500">ชั้น / ช่วงชั้น</dt><dd class="font-semibold text-navy-900">${LEVELS[room.level]} · ${STAGES[room.stage]}</dd></div>
-          <div class="rounded-xl bg-cream p-3"><dt class="text-xs text-slate-500">สังกัดวัด</dt><dd class="font-semibold text-navy-900">${h(s.wat || '-')}</dd></div>
-          <div class="rounded-xl bg-cream p-3"><dt class="text-xs text-slate-500">องค์กร/สถานศึกษา</dt><dd class="font-semibold text-navy-900">${h(s.school || '-')}</dd></div>
+          <div class="col-span-2 rounded-xl bg-cream p-3 sm:col-span-1"><dt class="text-xs text-slate-500">สังกัดวัด</dt><dd class="font-semibold text-navy-900">${h(s.wat || '-')}</dd></div>
+          <div class="col-span-2 rounded-xl bg-cream p-3 sm:col-span-1"><dt class="text-xs text-slate-500">องค์กร/สถานศึกษา</dt><dd class="font-semibold text-navy-900">${h(s.school || '-')}</dd></div>
         </dl>
         <div><p class="mb-2 text-sm font-bold text-navy-900">กรรมการกำกับห้องสอบ</p>${proctorList(room)}</div>
         ${actionButtons(room, s)}
@@ -441,8 +445,8 @@ function renderSchoolDetail() {
           placeholder="ค้นชื่อ / เลขที่สอบ ในโรงเรียนนี้"
           class="min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-navy-900 placeholder:text-slate-400 focus:border-gold-500 focus:outline-none focus:ring-4 focus:ring-gold-300/40">
         <div class="flex shrink-0 gap-2">
-          <button class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-school-share>${ICON.share} แชร์รายชื่อ</button>
-          <button class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-navy-900 px-3.5 py-2.5 text-sm font-semibold text-gold-300 hover:bg-navy-800" data-school-print>${ICON.print} พิมพ์บัญชี</button>
+          <button class="inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-school-share>${ICON.share} แชร์รายชื่อ</button>
+          <button class="inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-navy-900 px-3.5 py-2.5 text-sm font-semibold text-gold-300 hover:bg-navy-800" data-school-print>${ICON.print} พิมพ์บัญชี</button>
         </div>
       </div>
       <div id="schoolList" class="space-y-3"></div>
@@ -469,11 +473,11 @@ function renderSchoolList() {
       <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-cream px-3.5 py-3">
           <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg leading-none" style="background:${c.bg};color:${c.fg}">${th(room.roomNo)}</span>
-          <span class="min-w-0 flex-1">
+          <span class="min-w-[12rem] flex-1">
             <span class="block font-semibold text-navy-900">${h(roomShort(room))} <span class="text-xs font-normal text-slate-500">(${th(items.length)} คน)</span></span>
-            <span class="flex items-start gap-1 text-xs text-slate-500">${ICON.pin}<span>${loc ? h(loc) : 'ตำแหน่งห้องจะแจ้งให้ทราบ'}</span></span>
+            <span class="flex items-start gap-1 text-xs text-slate-500">${ICON.pin}<span>${loc ? keep(loc) : 'ตำแหน่งห้องจะแจ้งให้ทราบ'}</span></span>
           </span>
-          <span class="flex gap-2">
+          <span class="ml-auto flex gap-2">
             ${plan ? `<button class="rounded-lg bg-gold-500 px-2.5 py-1.5 text-xs font-bold text-navy-950 hover:bg-gold-400" data-show-map="${h(room.id)}">ดูผัง</button>` : ''}
             <button class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-900 hover:bg-slate-50" data-open-room="${h(room.id)}">ทั้งห้อง</button>
           </span>
@@ -984,7 +988,7 @@ function mapInfoHtml(room) {
     <div class="flex items-start gap-3">
       <div class="min-w-0 flex-1">
         <p class="font-display text-lg text-navy-900">${h(roomTitle(room))}</p>
-        <p class="text-sm text-slate-600">${h(roomLoc(room) || 'ยังไม่ระบุตำแหน่ง')} · ผู้เข้าสอบ ${th((room.students || []).length)} คน</p>
+        <p class="text-sm text-slate-600">${keep(`${roomLoc(room) || 'ยังไม่ระบุตำแหน่ง'} · ผู้เข้าสอบ ${(room.students || []).length} คน`)}</p>
       </div>
       <button class="shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-open-room="${h(room.id)}">รายชื่อ</button>
     </div>`;

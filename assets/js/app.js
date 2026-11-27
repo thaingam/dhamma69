@@ -135,7 +135,11 @@ function renderHero() {
   const c = state.config || {};
   if (c.fieldCode) $('#heroCode').textContent = `รหัสสนาม ${th(c.fieldCode)}`;
   if (c.examDateText) $('#heroDate').textContent = th(c.examDateText);
-  if (c.venue) $('#heroSub').textContent = `${th(c.subtitle || '')} · ${th(c.venue)} ${th(c.address || '')}`.replace(/^ · /, '');
+  // แบ่งเป็นช่วง ๆ (inline-block) ให้ขึ้นบรรทัดใหม่ระหว่างช่วงเท่านั้น ไม่ตัดกลางคำ
+  const chunks = (text, sep) => String(text || '').split(sep).map((t) => t.trim()).filter(Boolean)
+    .map((t) => `<span class="inline-block">${h(th(t))}</span>`);
+  if (c.venue) $('#heroSub').innerHTML = [...chunks(c.subtitle, /\s·\s/), ...chunks(c.venue, /\s·\s/)].join(' · ');
+  if (c.address) $('#heroAddr').innerHTML = `<span aria-hidden="true">📍</span><span>${chunks(c.address, /\s+/).join(' ')}</span>`;
   tickCountdown();
 }
 
@@ -483,7 +487,7 @@ function renderSchoolList() {
 /** ข้อความรายชื่อทั้งโรงเรียน สำหรับส่งต่อในไลน์ / กลุ่มผู้ปกครอง */
 function schoolShareText(name) {
   const hits = schoolHits(name);
-  const lines = [`รายชื่อนักเรียน${th(name)} สอบธรรมสนามหลวง ๒๕๖๙ (${th(hits.length)} คน)`];
+  const lines = [`รายชื่อนักเรียน${th(name)} สอบธรรมศึกษา ๒๕๖๙ (${th(hits.length)} คน)`];
   for (const { room, items } of schoolGroups(hits)) {
     const loc = roomLoc(room);
     lines.push('', `▸ ${roomShort(room)}${loc ? ` — ${loc}` : ''} (${th(items.length)} คน)`);
@@ -505,7 +509,7 @@ $('#modeSchool').addEventListener('click', async (e) => {
     const text = schoolShareText(state.school.name);
     const url = schoolUrl(state.school.name);
     try {
-      if (navigator.share) await navigator.share({ title: 'รายชื่อนักเรียนสอบธรรมสนามหลวง', text, url });
+      if (navigator.share) await navigator.share({ title: 'รายชื่อนักเรียนสอบธรรมศึกษา', text, url });
       else { await navigator.clipboard.writeText(`${text}\n\n${url}`); shareBtn.lastChild.textContent = ' คัดลอกแล้ว'; }
     } catch { /* ผู้ใช้กดยกเลิก */ }
   }
@@ -535,7 +539,7 @@ document.addEventListener('click', async (e) => {
     const url = `${location.origin}${location.pathname}?q=${encodeURIComponent(hit.no)}`;
     const text = `${publicName(hit.student)} เลขที่สอบ ${formatNo(hit.no)}\n${roomTitle(hit.room)}${roomLoc(hit.room) ? `\n📍 ${roomLoc(hit.room)}` : ''}`;
     try {
-      if (navigator.share) await navigator.share({ title: 'ห้องสอบธรรมสนามหลวง', text, url });
+      if (navigator.share) await navigator.share({ title: 'ห้องสอบธรรมศึกษา', text, url });
       else { await navigator.clipboard.writeText(`${text}\n${url}`); shareBtn.lastChild.textContent = ' คัดลอกแล้ว'; }
     } catch { /* ผู้ใช้กดยกเลิก */ }
   }
@@ -653,8 +657,127 @@ function mapFactsHtml() {
     </div>`).join('')}</div>`;
 }
 
-function expandButton(attr) {
-  return `<button ${attr} class="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-xl bg-navy-900/85 px-3 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-navy-900">${ICON.expand} ขยายเต็มจอ</button>`;
+function campusButtons() {
+  const cls = 'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold sm:flex-none';
+  return `<div class="flex shrink-0 gap-2">
+    <button data-share-campus class="${cls} bg-gold-500 text-navy-950 hover:bg-gold-400">${ICON.share} <span data-label>แชร์ภาพ</span></button>
+    <button data-full-campus class="${cls} bg-navy-900 text-white hover:bg-navy-800">${ICON.expand} ขยายเต็มจอ</button>
+  </div>`;
+}
+
+/* ---------- แชร์ผังเป็นไฟล์ภาพ (ส่งเข้าไลน์ / บันทึกลงเครื่องได้) ---------- */
+
+const SHARE_TITLE = 'สนามสอบธรรมศึกษา ๒๕๖๙ · โรงเรียนชุมชนวัดไทยงาม';
+const shareFiles = new Map();   // เก็บไฟล์ที่สร้างแล้ว — แตะซ้ำแชร์ได้ทันที
+
+function setLabel(btn, text, revertMs) {
+  const el = btn.querySelector('[data-label]');
+  if (!el) return;
+  const original = el.dataset.original || (el.dataset.original = el.textContent);
+  el.textContent = text;
+  if (revertMs) setTimeout(() => { el.textContent = original; }, revertMs);
+}
+
+function downloadFile(file) {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: file.name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+async function shareImage(btn, key, makeFile) {
+  let file = shareFiles.get(key);
+  try {
+    if (!file) {
+      btn.disabled = true;
+      setLabel(btn, 'กำลังเตรียมภาพ…');
+      file = await makeFile();
+      shareFiles.set(key, file);
+      btn.disabled = false;
+      setLabel(btn, btn.querySelector('[data-label]')?.dataset.original || '');
+    }
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: SHARE_TITLE });
+    } else {
+      downloadFile(file);                         // คอมพิวเตอร์ที่แชร์ไฟล์ไม่ได้ → ดาวน์โหลดแทน
+      setLabel(btn, 'ดาวน์โหลดแล้ว', 2500);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    if (err.name === 'AbortError') return;        // ผู้ใช้กดยกเลิกหน้าต่างแชร์
+    if (err.name === 'NotAllowedError' && file) { // iPhone: รอโหลดภาพนานจนหมดสิทธิ์แชร์ → ให้แตะอีกครั้ง
+      setLabel(btn, 'ภาพพร้อมแล้ว แตะอีกครั้ง');
+      return;
+    }
+    console.error(err);
+    if (file) downloadFile(file);
+    else setLabel(btn, 'แชร์ไม่สำเร็จ', 2500);
+  }
+}
+
+/** ภาพผังรวมโรงเรียน (ขนาดพอดีส่งไลน์ ~๓๐๐KB) */
+async function campusImageFile(url) {
+  const res = await fetch(cloudinaryVariant(url, 'f_jpg,q_auto,w_1600'), { mode: 'cors' });
+  if (!res.ok) throw new Error(`โหลดภาพไม่ได้ (${res.status})`);
+  const blob = await res.blob();
+  return new File([blob], 'thaingam-exam-map-2569.jpg', { type: blob.type || 'image/jpeg' });
+}
+
+function fitText(ctx, text, maxW, size, weight, family) {
+  while (size > 10) {
+    ctx.font = `${weight} ${size}px ${family}`;
+    if (ctx.measureText(text).width <= maxW) break;
+    size -= 1;
+  }
+  return size;
+}
+
+/** ภาพผังห้องสอบรายอาคาร: หัวภาพ (ชื่ออาคาร + สนามสอบ) + ห้องที่เลือก + ผังที่ห้องนั้นไฮไลต์ บนพื้นขาว */
+async function planImageFile(plan, room) {
+  const src = planCtl.snapshot();
+  const W = src.width;
+  const u = W / 40;                                // หน่วยขนาดตัวอักษรตามความกว้างภาพ
+  const pad = Math.round(u * 1.2);
+  const headH = Math.round(u * 4.4);
+  const roomH = room ? Math.round(u * 2.6) : 0;
+  const footH = Math.round(u * 1.8);
+  const out = document.createElement('canvas');
+  out.width = W;
+  out.height = headH + roomH + pad + src.height + footH;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, out.width, out.height);
+  // header ของธีมเป็น CSS linear-gradient → ดึงสีออกมาทำ gradient ของ canvas
+  const stops = String(planTheme(plan).header).match(/#[0-9a-f]{3,8}/gi) || ['#0B1F3A'];
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  stops.forEach((c, i) => grad.addColorStop(stops.length > 1 ? i / (stops.length - 1) : 0, c));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, headH);
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  const title = th(`แผนผัง${plan.name} (${plan.subtitle.replace(/^อาคาร/, '')})`);
+  fitText(ctx, title, W - pad * 2, Math.round(u * 1.5), 700, 'Pridi, Sarabun, serif');
+  ctx.fillText(title, pad, headH * 0.4);
+  fitText(ctx, SHARE_TITLE, W - pad * 2, Math.round(u * 0.9), 500, 'Sarabun, sans-serif');
+  ctx.globalAlpha = 0.9;
+  ctx.fillText(SHARE_TITLE, pad, headH * 0.76);
+  ctx.globalAlpha = 1;
+  if (room) {
+    ctx.fillStyle = '#FBF1D0';
+    ctx.fillRect(0, headH, W, roomH);
+    ctx.fillStyle = '#0B1F3A';
+    const line = `📍 ${roomTitle(room)}${roomLoc(room) ? ` · ${roomLoc(room)}` : ''}`;
+    fitText(ctx, line, W - pad * 2, Math.round(u * 1.05), 700, 'Sarabun, sans-serif');
+    ctx.fillText(line, pad, headH + roomH / 2);
+  }
+  ctx.drawImage(src, 0, headH + roomH + pad / 2);
+  ctx.fillStyle = '#64748B';
+  const foot = th(plan.note ? `หมายเหตุ: ${plan.note}` : 'ห้องสีทองคือห้องสอบ');
+  fitText(ctx, foot, W - pad * 2, Math.round(u * 0.8), 500, 'Sarabun, sans-serif');
+  ctx.fillText(foot, pad, out.height - footH / 2);
+  const blob = await new Promise((ok, fail) => out.toBlob((b) => (b ? ok(b) : fail(new Error('สร้างภาพไม่ได้'))), 'image/png'));
+  return new File([blob], `thaingam-${plan.id}${room ? `-${room.id}` : ''}-2569.png`, { type: 'image/png' });
 }
 
 function renderMap() {
@@ -671,10 +794,10 @@ function renderMap() {
     <figure class="card overflow-hidden">
       <div class="relative">
         <img src="${h(cloudinaryVariant(campus, MAP_INLINE))}" alt="แผนผังสถานที่สอบธรรมศึกษา ๒๕๖๙ สนามสอบโรงเรียนชุมชนวัดไทยงาม" class="block w-full" loading="lazy">
-        ${expandButton('data-full-campus')}
       </div>
-      <figcaption class="border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
-        <b class="text-navy-900">ผังรวมโรงเรียน</b> · การสอบใช้หลายอาคาร หมุดสีแดงคืออาคารที่ใช้สอบ — ดูผังห้องสอบของแต่ละอาคารได้ด้านล่าง
+      <figcaption class="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center">
+        <p class="min-w-0 flex-1"><b class="text-navy-900">ผังรวมโรงเรียน</b> · การสอบใช้หลายอาคาร หมุดสีแดงคืออาคารที่ใช้สอบ — ดูผังห้องสอบของแต่ละอาคารได้ด้านล่าง</p>
+        ${campusButtons()}
       </figcaption>
     </figure>` : ''}
 
@@ -693,7 +816,8 @@ function renderMap() {
         <div class="flex items-center gap-3 px-4 py-3 text-white" style="background:${planTheme(plan).header}">
           <img src="assets/img/favicon.svg" alt="" class="h-8 w-8">
           <p class="min-w-0 flex-1 font-display text-lg leading-tight">แผนผัง${h(th(plan.name))} <span class="text-sm opacity-90">(${h(plan.subtitle.replace(/^อาคาร/, ''))})</span></p>
-          <button data-full-plan class="shrink-0 rounded-lg bg-navy-900/80 px-3 py-1.5 text-xs font-semibold hover:bg-navy-900">${ICON.expand}</button>
+          <button data-share-plan class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-navy-900/80 px-3 py-1.5 text-xs font-semibold hover:bg-navy-900" aria-label="แชร์ภาพผังอาคาร">${ICON.share}<span data-label class="hidden sm:inline">แชร์ภาพ</span></button>
+          <button data-full-plan class="shrink-0 rounded-lg bg-navy-900/80 px-3 py-1.5 text-xs font-semibold hover:bg-navy-900" aria-label="ขยายเต็มจอ">${ICON.expand}</button>
         </div>
         <div id="planHost" class="px-2 py-3 sm:px-4"></div>
         ${plan.note ? `<p class="px-4 pb-3 text-xs font-semibold text-slate-500">หมายเหตุ: ${h(th(plan.note))}</p>` : ''}
@@ -705,10 +829,16 @@ function renderMap() {
     </div>` : ''}`;
 
   box.querySelector('[data-full-campus]')?.addEventListener('click', () => openImageDialog(campus, 'ผังรวมโรงเรียน'));
+  box.querySelector('[data-share-campus]')?.addEventListener('click', (e) =>
+    shareImage(e.currentTarget, `campus:${campus}`, () => campusImageFile(campus)));
   if (!plan) return;
   planCtl?.destroy();
   planCtl = mountFloorPlan($('#planHost'), { plan, rooms: roomsMap(), activeId: state.mapRoomId, onSelect: selectPlanRoom });
   box.querySelector('[data-full-plan]').addEventListener('click', () => openPlanDialog(plan));
+  box.querySelector('[data-share-plan]').addEventListener('click', (e) => {
+    const room = active || null;
+    shareImage(e.currentTarget, `plan:${plan.id}:${room?.id || ''}:${$('#planHost canvas')?.width}`, () => planImageFile(plan, room));
+  });
   $('#buildingMaps').addEventListener('click', (e) => {
     const b = e.target.closest('[data-building]');
     if (b) { state.buildingId = b.dataset.building; state.mapRoomId = null; renderMap(); return; }

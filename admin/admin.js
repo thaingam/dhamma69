@@ -834,7 +834,7 @@ function renderSurvey() {
   view.querySelectorAll('[data-sgroup]').forEach((b) => { b.onclick = () => { survey.group = b.dataset.sgroup; renderSurvey(); }; });
   $('#btnCsv').onclick = () => {
     const blob = new Blob([surveyCsv(list)], { type: 'text/csv;charset=utf-8' });
-    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `แบบประเมิน-ธรรมสนามหลวง2569-${new Date().toISOString().slice(0, 10)}.csv` });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `แบบประเมิน-ธรรมศึกษา2569-${new Date().toISOString().slice(0, 10)}.csv` });
     a.click();
     URL.revokeObjectURL(a.href);
   };

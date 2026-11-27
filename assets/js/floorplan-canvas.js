@@ -361,6 +361,8 @@ export function mountFloorPlan(host, opts) {
 
   return {
     setActive(id) { activeId = id; restart(); },
+    /** วาดเฟรมที่ห้องกระพริบชัดที่สุด (pulse = 1) แล้วคืน canvas — ใช้ทำภาพแชร์ */
+    snapshot() { draw(180 * Math.PI / 2); return canvas; },
     destroy,
   };
 }

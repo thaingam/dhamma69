@@ -33,6 +33,7 @@ const ICON = {
   share: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
   chev: '<svg class="chev h-5 w-5 shrink-0 text-slate-400 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>',
   expand: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
+  print: '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>',
 };
 
 /* ------------------------------------------------------------------ โหลดข้อมูล */
@@ -336,6 +337,10 @@ function renderRoomDetail() {
           <p class="text-sm font-bold text-navy-900">กรรมการกำกับห้องสอบ</p>
           ${proctorList(room)}
           ${actionButtons(room, null)}
+          <div class="flex flex-wrap gap-2 border-t border-gold-300/50 pt-3">
+            ${students.length ? `<button class="inline-flex items-center gap-1.5 rounded-xl bg-navy-900 px-3.5 py-2 text-sm font-semibold text-gold-300 hover:bg-navy-800" data-print-room="${h(room.id)}">${ICON.print} พิมพ์บัญชีรายชื่อห้องนี้</button>` : ''}
+            <button class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-print-all>${ICON.print} พิมพ์ทุกห้อง (ห้องละหน้า)</button>
+          </div>
         </div>
         <div class="rounded-2xl border border-slate-200">
           <p class="border-b border-slate-100 px-4 py-3 text-sm font-bold text-navy-900">รายชื่อผู้เข้าสอบ ${th(students.length)} คน</p>
@@ -435,7 +440,10 @@ function renderSchoolDetail() {
         <input id="schoolFilter" type="search" enterkeyhint="search" autocomplete="off" value="${h(state.school.filter)}"
           placeholder="ค้นชื่อ / เลขที่สอบ ในโรงเรียนนี้"
           class="min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-navy-900 placeholder:text-slate-400 focus:border-gold-500 focus:outline-none focus:ring-4 focus:ring-gold-300/40">
-        <button class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-school-share>${ICON.share} แชร์รายชื่อ</button>
+        <div class="flex shrink-0 gap-2">
+          <button class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-school-share>${ICON.share} แชร์รายชื่อ</button>
+          <button class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-navy-900 px-3.5 py-2.5 text-sm font-semibold text-gold-300 hover:bg-navy-800" data-school-print>${ICON.print} พิมพ์บัญชี</button>
+        </div>
       </div>
       <div id="schoolList" class="space-y-3"></div>
     </div>`;
@@ -501,9 +509,125 @@ function selectSchool(name) {
   renderSchoolPicker();
 }
 
+/* ---------- พิมพ์บัญชีรายชื่อ (A4 · นามสกุลปิดบางส่วนเหมือนบนเว็บ) ---------- */
+
+const LOGO_PRINT = 'https://res.cloudinary.com/djkbdwnsc/image/upload/f_png,q_auto,h_240/v1786978522/next-fullStack/Logo-thaingam_1_k2iec7.png';
+
+function printHeader(title) {
+  return `
+    <div class="pr-head">
+      <img src="${LOGO_PRINT}" alt="">
+      <div>
+        <h1>${h(title)}</h1>
+        <p>สนามสอบธรรมศึกษา ประจำปี ๒๕๖๙ · สนามสอบจุดที่ ๔ โรงเรียนชุมชนวัดไทยงาม (รหัสสนาม ${h(th(state.config?.fieldCode || '๒๐๗๐๓๐'))})</p>
+        ${state.config?.examDateText ? `<p>สอบ${h(th(state.config.examDateText))}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+function printFooter() {
+  const date = th(new Date().toLocaleDateString('th-TH', { dateStyle: 'long' }));
+  return `<p class="pr-foot">พิมพ์เมื่อ ${date} จาก ${h(location.host + location.pathname)} · นามสกุลแสดงบางส่วนเพื่อคุ้มครองข้อมูลส่วนบุคคล · บัญชีฉบับจริงตรวจสอบได้ที่สนามสอบ</p>`;
+}
+
+function printProctors(room) {
+  const list = (room.proctors || []).filter((p) => p.name);
+  return list.length ? list.map((p) => `${h(p.role)} ${h(th(publicPersonName(p.name)))}`).join(' · ') : 'ยังไม่ระบุ';
+}
+
+function printTable(students, withSchool = true) {
+  if (!students.length) return '<p class="pr-empty">รอประกาศรายชื่อผู้เข้าสอบ</p>';
+  return `
+    <table class="pr-table">
+      <thead><tr><th class="c">ที่</th><th class="c">เลขที่สอบ</th><th>ชื่อ – นามสกุล</th><th class="nw">สังกัดวัด</th>${withSchool ? '<th class="nw">สถานศึกษา</th>' : ''}<th style="width:13%">หมายเหตุ</th></tr></thead>
+      <tbody>${students.map((s, i) => `
+        <tr>
+          <td class="c">${th(i + 1)}</td>
+          <td class="c">${formatNo(s.no)}</td>
+          <td>${h(publicName(s))}${s.note ? ` ${h(s.note)}` : ''}</td>
+          <td class="nw">${h(th(s.wat || '-'))}</td>
+          ${withSchool ? `<td class="nw">${h(th(s.school || '-'))}</td>` : ''}
+          <td></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+const sortedStudents = (list) => [...(list || [])].sort((a, b) => a.no.localeCompare(b.no));
+
+/** บัญชีรายชื่อ ๑ ห้อง = ๑ หน้า (ใช้ติดหน้าห้องสอบได้) */
+function roomPrintPage(room) {
+  const students = sortedStudents(room.students);
+  const loc = roomLoc(room);
+  return `
+    <section class="pr-page">
+      ${printHeader('บัญชีรายชื่อผู้เข้าสอบ')}
+      <div class="pr-sec">
+        <h2>${h(roomTitle(room))}</h2>
+        <p class="pr-meta">${loc ? `<b>สถานที่:</b> ${h(loc)} · ` : ''}<b>ผู้เข้าสอบ</b> ${th(students.length)} คน<br><b>กรรมการกำกับห้องสอบ:</b> ${printProctors(room)}</p>
+        ${printTable(students)}
+      </div>
+      ${printFooter()}
+    </section>`;
+}
+
+/** บัญชีรายชื่อนักเรียนของโรงเรียน แยกตามห้องสอบ (ต่อเนื่องกัน ไม่ขึ้นหน้าใหม่ทุกห้อง) */
+function schoolPrintPage(name) {
+  const hits = schoolHits(name);
+  return `
+    <section class="pr-page">
+      ${printHeader(`บัญชีรายชื่อนักเรียน${th(name)}`)}
+      <p class="pr-meta" style="margin-top:6pt">ผู้เข้าสอบรวม <b>${th(hits.length)}</b> คน · แยกตามห้องสอบ</p>
+      ${schoolGroups(hits).map(({ room, items }) => {
+        const loc = roomLoc(room);
+        return `
+        <div class="pr-sec">
+          <h2>${h(roomTitle(room))} <span style="font-size:10.5pt;font-weight:400">(${th(items.length)} คน)</span></h2>
+          <p class="pr-meta">${loc ? `<b>สถานที่:</b> ${h(loc)} · ` : ''}<b>กรรมการกำกับห้องสอบ:</b> ${printProctors(room)}</p>
+          ${printTable(items.map((x) => x.student), false)}
+        </div>`;
+      }).join('')}
+      ${printFooter()}
+    </section>`;
+}
+
+async function printDoc(html, title) {
+  const area = $('#printArea');
+  area.innerHTML = html;
+  // รอตราโรงเรียนโหลด (ไม่เกิน ๒ วินาที) ไม่งั้นภาพจะหายจากหน้าที่พิมพ์
+  await Promise.race([
+    Promise.all([...area.querySelectorAll('img')].map((img) => img.decode().catch(() => {}))),
+    new Promise((r) => setTimeout(r, 2000)),
+  ]);
+  const oldTitle = document.title;
+  document.title = title;                      // ใช้เป็นชื่อไฟล์ตอน "บันทึกเป็น PDF"
+  document.body.classList.add('printing');
+  const cleanup = () => {
+    document.body.classList.remove('printing');
+    document.title = oldTitle;
+    area.innerHTML = '';
+  };
+  window.addEventListener('afterprint', cleanup, { once: true });
+  window.print();
+}
+
+function printRoom(roomId) {
+  const room = roomById(roomId);
+  if (room) printDoc(roomPrintPage(room), `บัญชีรายชื่อ ${roomShort(room)}`);
+}
+
+function printAllRooms() {
+  const rooms = state.rooms.filter((r) => (r.students || []).length);
+  printDoc(rooms.map(roomPrintPage).join(''), 'บัญชีรายชื่อผู้เข้าสอบ ทุกห้อง');
+}
+
 $('#modeSchool').addEventListener('click', async (e) => {
   const pick = e.target.closest('[data-school]');
   if (pick) { selectSchool(pick.dataset.school); return; }
+  if (e.target.closest('[data-school-print]') && state.school.name) {
+    printDoc(schoolPrintPage(state.school.name), `บัญชีรายชื่อ ${state.school.name}`);
+    return;
+  }
   const shareBtn = e.target.closest('[data-school-share]');
   if (shareBtn && state.school.name) {
     const text = schoolShareText(state.school.name);
@@ -530,6 +654,9 @@ $('#modeSchool').addEventListener('keydown', (e) => {
 document.addEventListener('click', async (e) => {
   const mapBtn = e.target.closest('[data-show-map]');
   if (mapBtn) { focusMapRoom(mapBtn.dataset.showMap); return; }
+  const printBtn = e.target.closest('[data-print-room]');
+  if (printBtn) { printRoom(printBtn.dataset.printRoom); return; }
+  if (e.target.closest('[data-print-all]')) { printAllRooms(); return; }
   const roomBtn = e.target.closest('[data-open-room]');
   if (roomBtn) { openRoomView(roomBtn.dataset.openRoom); return; }
   const shareBtn = e.target.closest('[data-share]');

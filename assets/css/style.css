@@ -76,3 +76,31 @@ input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; a
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* ---------- บัญชีรายชื่อสำหรับพิมพ์ (A4) ---------- */
+#printArea { display: none; }
+@media print {
+  @page { size: A4 portrait; margin: 12mm 12mm 14mm; }
+  body.printing { background: #fff !important; padding: 0 !important; min-height: 0 !important; }
+  body.printing > *:not(#printArea) { display: none !important; }
+  body.printing #printArea { display: block !important; }
+}
+.pr-page { color: #000; font-family: 'Sarabun', sans-serif; font-size: 11.5pt; line-height: 1.35; }
+.pr-page + .pr-page { break-before: page; }
+.pr-head { display: flex; align-items: center; gap: 10pt; border-bottom: 1.5pt solid #0B1F3A; padding-bottom: 6pt; }
+.pr-head img { height: 46pt; width: auto; }
+.pr-head h1 { font-family: 'Pridi', 'Sarabun', serif; font-size: 15pt; margin: 0; line-height: 1.25; }
+.pr-head p { margin: 0; font-size: 10pt; color: #333; }
+.pr-sec { margin-top: 10pt; }
+.pr-sec + .pr-sec { margin-top: 16pt; }
+.pr-sec h2 { font-family: 'Pridi', 'Sarabun', serif; font-size: 13.5pt; margin: 0 0 2pt; break-after: avoid; }
+.pr-meta { font-size: 10pt; margin: 0 0 6pt; color: #222; break-after: avoid; }
+.pr-meta b { font-weight: 700; }
+.pr-table { width: 100%; border-collapse: collapse; }
+.pr-table th, .pr-table td { border: 0.75pt solid #555; padding: 2pt 5pt; text-align: left; vertical-align: top; }
+.pr-table th { background: #EEF0F4; font-weight: 700; font-size: 10.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pr-table td.c, .pr-table th.c { text-align: center; white-space: nowrap; }
+.pr-table tr { break-inside: avoid; }
+.pr-empty { border: 0.75pt dashed #777; padding: 10pt; text-align: center; }
+.pr-foot { margin-top: 8pt; font-size: 8.5pt; color: #555; }
+.pr-table td.nw, .pr-table th.nw { white-space: nowrap; font-size: 10pt; }

@@ -27,7 +27,7 @@ export const STAGE_SHORT = { p: 'ประถม', m: 'มัธยม' };
 export const LEVEL_COLOR = {
   tri: { bg: '#C9A227', fg: '#0B1F3A', soft: '#FBF1D0' },
   tho: { bg: '#2563EB', fg: '#FFFFFF', soft: '#DBEAFE' },
-  ek: { bg: '#B91C1C', fg: '#FFFFFF', soft: '#FEE2E2' },
+  ek: { bg: '#7C3AED', fg: '#FFFFFF', soft: '#EDE9FE' },   // ม่วง — ไม่ให้ซ้ำกับสีแดงของห้องที่กระพริบ
 };
 
 export function levelTitle(room) {

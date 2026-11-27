@@ -11,6 +11,7 @@ import {
   locationText, sortRooms, fullName, escapeHtml as h, safeImageUrl, computeStats, normalize,
   DEFAULT_MAP_URL, cloudinaryVariant,
 } from '../assets/js/utils.js';
+import { FLOORPLANS, findPlan, effectiveLocation } from '../assets/js/floorplans.js';
 
 const auth = getAuth(app);
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -24,7 +25,6 @@ const state = {
   draft: null,           // สำเนาที่กำลังแก้
   dirty: false,
   studentFilter: '',
-  mapRoomId: '',
   unsub: [],
   loaded: { rooms: false, config: false, committee: false },
 };
@@ -201,10 +201,10 @@ function renderRooms() {
               ${levelBadge(r)}
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-semibold text-navy-900">${h(roomShort(r))}</span>
-                <span class="block truncate text-xs text-slate-500">${h(locationText(r.location)) || '<i>ยังไม่ระบุตำแหน่ง</i>'}</span>
+                <span class="block truncate text-xs text-slate-500">${h(locationText(effectiveLocation(r))) || '<i>ยังไม่ระบุตำแหน่ง</i>'}</span>
               </span>
               <span class="text-right text-xs text-slate-500">
-                <b class="block text-base text-navy-900">${th((r.students || []).length)}</b>คน ${r.pin ? '📍' : ''}
+                <b class="block text-base text-navy-900">${th((r.students || []).length)}</b>คน ${findPlan(r.id) ? '🏢' : ''}
               </span>
             </button>`).join('')}
         </div>
@@ -260,7 +260,7 @@ function editorHtml() {
             <div><label class="lbl">ชื่อห้องจริง</label><input class="inp" data-loc="roomName" value="${h(d.location.roomName)}" placeholder="เช่น ห้อง ป.๔/๑"></div>
           </div>
           <div><label class="lbl">หมายเหตุ</label><input class="inp" data-loc="note" value="${h(d.location.note)}" placeholder="เช่น ทางขึ้นบันไดฝั่งโรงอาหาร"></div>
-          <p class="text-xs text-slate-500">ปักหมุดห้องบนแผนผังได้ที่แท็บ “แผนผัง” ${d.pin ? '· ✅ ปักหมุดแล้ว' : '· ยังไม่ปักหมุด'}</p>
+          <p class="text-xs text-slate-500">${findPlan(d.id) ? `🏢 ตามผังอาคาร: <b>${h(locationText(effectiveLocation(d)))}</b> — ระบบใช้อาคาร/ชั้นจากผังแทนช่องด้านบน (ช่องชื่อห้องจริงและหมายเหตุยังใช้ได้)` : 'ห้องนี้ยังไม่อยู่ในผังอาคาร — ระบบจะแสดงตำแหน่งตามที่กรอกด้านบน'}</p>
         </fieldset>
 
         <fieldset class="space-y-3">
@@ -515,39 +515,35 @@ function addRoomDialog() {
 function renderMap() {
   const view = $('#appView');
   const rooms = roomsSorted();
-  const url = safeImageUrl(state.config?.mapUrl) || DEFAULT_MAP_URL;
   const c = state.config || {};
-  if (!state.mapRoomId || !state.rooms.has(state.mapRoomId)) state.mapRoomId = rooms[0]?.id || '';
+  const url = safeImageUrl(c.mapUrl) || DEFAULT_MAP_URL;
+  const unplaced = rooms.filter((r) => !findPlan(r.id));
   view.innerHTML = `
     <div class="space-y-4">
       <div class="card space-y-3 p-4">
-        <h2 class="font-display text-lg text-navy-900">ภาพแผนผังอาคาร</h2>
-        <p class="text-sm text-slate-600">อัปโหลดภาพขึ้น Cloudinary แล้วคัดลอกลิงก์ภาพ (ขึ้นต้นด้วย https://res.cloudinary.com/…) มาวางที่นี่ — ถ้าเว้นว่าง จะใช้ภาพแผนผังเริ่มต้นของโรงเรียน</p>
-        <div><label class="lbl">ลิงก์ภาพแผนผัง</label>
+        <h2 class="font-display text-lg text-navy-900">ผังรวมโรงเรียน</h2>
+        <p class="text-sm text-slate-600">ภาพแสดงทุกอาคารของโรงเรียน และอาคารที่ใช้สอบ (ภาพจาก Cloudinary) — ถ้าเว้นว่าง จะใช้ภาพผังเริ่มต้น</p>
+        <div><label class="lbl">ลิงก์ภาพผังรวม</label>
           <input class="inp" id="mapUrl" type="url" placeholder="https://res.cloudinary.com/..." value="${h(c.mapUrl || DEFAULT_MAP_URL)}"></div>
         <div class="grid gap-3 sm:grid-cols-2">
-          <div><label class="lbl">อาคารที่ใช้สอบ (แสดงเหนือแผนผัง)</label><input class="inp" id="examBuildings" value="${h(c.examBuildings || '')}" placeholder="เช่น อาคาร ๒ · อาคาร ๓ · อาคาร ๔"></div>
+          <div><label class="lbl">อาคารที่ใช้สอบ (แสดงเหนือผัง)</label><input class="inp" id="examBuildings" value="${h(c.examBuildings || '')}" placeholder="เช่น อาคาร ๒ · อาคาร ๓ · อาคาร ๔"></div>
           <div><label class="lbl">จุดรวมแถวและแจกข้อสอบ</label><input class="inp" id="assemblyPoint" value="${h(c.assemblyPoint || '')}" placeholder="เช่น ลานหน้าอาคาร ๔"></div>
         </div>
-        <button class="btn btn-navy" id="btnSaveMap">บันทึกข้อมูลแผนผัง</button>
+        <button class="btn btn-navy" id="btnSaveMap">บันทึกข้อมูลผังรวม</button>
+        <img src="${h(cloudinaryVariant(url, 'f_auto,q_auto,w_1000'))}" alt="ผังรวมโรงเรียน" class="mt-2 w-full rounded-xl border border-slate-200">
       </div>
+
       <div class="card space-y-3 p-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div class="flex-1"><label class="lbl">ปักหมุดให้ห้อง</label>
-            <select class="inp" id="mapRoom">${rooms.map((r) => `<option value="${h(r.id)}" ${r.id === state.mapRoomId ? 'selected' : ''}>${h(roomShort(r))} ${r.pin ? '📍' : '— ยังไม่ปัก'}</option>`).join('')}</select></div>
-          <button class="btn btn-danger shrink-0" id="btnClearPin">ลบหมุดห้องนี้</button>
-        </div>
-        <p class="rounded-xl bg-gold-100 px-3 py-2 text-sm text-navy-900">👆 เลือกห้อง แล้ว<b>แตะบนภาพ</b>ตรงตำแหน่งห้องนั้น ระบบบันทึกทันที (แตะใหม่เพื่อย้ายหมุด)</p>
-        ${url ? `
-          <div class="overflow-auto rounded-xl border border-slate-200">
-            <div id="mapBox" class="relative mx-auto min-w-[640px] cursor-crosshair select-none">
-              <img src="${h(cloudinaryVariant(url, 'f_auto,q_auto,w_1400'))}" alt="แผนผังอาคาร" class="block w-full" draggable="false">
-              ${rooms.filter((r) => r.pin).map((r) => {
-                const c = LEVEL_COLOR[r.level];
-                return `<span class="map-pin ${r.id === state.mapRoomId ? 'is-active pin-pulse' : ''}" style="left:${r.pin.x}%;top:${r.pin.y}%;background:${c.bg};color:${c.fg}">${h(roomPinLabel(r))}</span>`;
-              }).join('')}
-            </div>
-          </div>` : '<p class="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">ยังไม่มีภาพแผนผัง — วางลิงก์ภาพด้านบนก่อน</p>'}
+        <h2 class="font-display text-lg text-navy-900">ผังห้องสอบรายอาคาร</h2>
+        <p class="text-sm text-slate-600">ผังวาดจากภาพผังที่โรงเรียนส่งมา (ไฟล์ <code>assets/js/floorplans.js</code>) ระบบกำหนดอาคารและชั้นของห้องสอบให้อัตโนมัติ ถ้าห้องสอบย้ายอาคาร ต้องแก้ผังในไฟล์นี้</p>
+        <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
+          ${FLOORPLANS.map((p) => `
+            <li class="px-3 py-2.5">
+              <b class="text-navy-900">${h(p.name)} (${h(p.subtitle)})</b>
+              <span class="block text-slate-600">${p.floors.map((f) => `ชั้น ${th(f.no)}: ${f.rooms.filter((r) => r.room).map((r) => (state.rooms.get(r.room) ? roomShort(state.rooms.get(r.room)) : `<span class="text-red-600">${h(r.room)} (ไม่มีในระบบ)</span>`)).join(', ') || '-'}`).join(' · ')}</span>
+            </li>`).join('')}
+        </ul>
+        ${unplaced.length ? `<p class="rounded-xl bg-gold-100 px-3 py-2 text-sm text-navy-900">ห้องสอบที่ยังไม่มีในผังอาคาร (${th(unplaced.length)} ห้อง): ${unplaced.map((r) => h(roomShort(r))).join(', ')}</p>` : '<p class="text-sm text-green-700">✅ ห้องสอบทุกห้องอยู่ในผังอาคารแล้ว</p>'}
       </div>
     </div>`;
 
@@ -561,29 +557,9 @@ function renderMap() {
         assemblyPoint: $('#assemblyPoint').value.trim(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      toast('บันทึกข้อมูลแผนผังแล้ว');
-      setTimeout(renderMap, 300);
+      toast('บันทึกข้อมูลผังรวมแล้ว');
     } catch (err) { toast(errText(err), 'error'); }
   };
-  $('#mapRoom').onchange = (e) => { state.mapRoomId = e.target.value; renderMap(); };
-  $('#btnClearPin').onclick = async () => {
-    try { await updateDoc(roomRef(state.mapRoomId), { pin: null, updatedAt: serverTimestamp() }); toast('ลบหมุดแล้ว'); setTimeout(renderMap, 300); }
-    catch (err) { toast(errText(err), 'error'); }
-  };
-  const box = $('#mapBox');
-  if (box) {
-    box.onclick = async (e) => {
-      const rect = box.getBoundingClientRect();
-      const x = Math.round(((e.clientX - rect.left) / rect.width) * 1000) / 10;
-      const y = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 10;
-      if (x < 0 || x > 100 || y < 0 || y > 100) return;
-      try {
-        await updateDoc(roomRef(state.mapRoomId), { pin: { x, y }, updatedAt: serverTimestamp() });
-        toast(`ปักหมุด ${roomShort(state.rooms.get(state.mapRoomId))} แล้ว`);
-        setTimeout(renderMap, 250);
-      } catch (err) { toast(errText(err), 'error'); }
-    };
-  }
 }
 
 /* ------------------------------------------------------------------ แท็บ ข้อมูลการสอบ */
@@ -718,7 +694,7 @@ function renderSystem() {
         <h2 class="font-display text-lg text-navy-900">ข้อมูลในระบบตอนนี้</h2>
         <ul class="space-y-1 text-sm">
           <li>ห้องสอบ: <b>${th(s.rooms)}</b> ห้อง · ผู้เข้าสอบ: <b>${th(s.total)}</b> คน · กรรมการกำกับห้อง: <b>${th(s.proctors)}</b></li>
-          <li>ปักหมุดแล้ว: <b>${th(rooms.filter((r) => r.pin).length)}</b> / ${th(rooms.length)} ห้อง · ระบุตำแหน่งแล้ว: <b>${th(rooms.filter((r) => locationText(r.location)).length)}</b> ห้อง</li>
+          <li>อยู่ในผังอาคารแล้ว: <b>${th(rooms.filter((r) => findPlan(r.id)).length)}</b> / ${th(rooms.length)} ห้อง</li>
           <li>ข้อมูลการสอบ: ${state.config ? '✅ มี' : '❌ ยังไม่มี'} · คำสั่งแต่งตั้ง: ${state.committee ? '✅ มี' : '❌ ยังไม่มี'}</li>
         </ul>
         <button class="btn btn-ghost" id="btnExport">⬇ ส่งออกข้อมูลสำรอง (JSON)</button>
@@ -756,7 +732,7 @@ function renderSystem() {
       for (const r of seed.rooms) {
         const old = state.rooms.get(r.id);
         const room = { ...r };
-        if (keep && old) { room.location = old.location || room.location; room.pin = old.pin || null; }
+        if (keep && old) { room.location = old.location || room.location; }
         batch.set(roomRef(r.id), roomPayload(room));
       }
       if ($('#withConfig').checked) {

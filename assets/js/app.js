@@ -8,6 +8,8 @@ import {
   roomPinLabel, locationText, sortRooms, fullName, buildIndex, search, escapeHtml as h, safeImageUrl, computeStats,
   DEFAULT_MAP_URL, cloudinaryVariant,
 } from './utils.js';
+import { FLOORPLANS, findPlan, effectiveLocation, planTheme } from './floorplans.js';
+import { mountFloorPlan } from './floorplan-canvas.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -20,6 +22,7 @@ const state = {
   mode: 'name',
   pick: { level: 'tri', stage: 'p', roomId: null },
   mapRoomId: null,
+  buildingId: null,
   zoom: 1,
 };
 
@@ -92,6 +95,7 @@ function renderAll() {
 }
 
 const roomById = (id) => state.rooms.find((r) => r.id === id);
+const roomLoc = (room) => locationText(effectiveLocation(room));
 const mapUrl = () => safeImageUrl(state.config?.mapUrl) || DEFAULT_MAP_URL;
 const MAP_INLINE = 'f_auto,q_auto,w_1400';   // ภาพในหน้าเว็บ (~300KB)
 const MAP_FULL = 'f_auto,q_auto';            // ภาพเต็มจอ (ความละเอียดเต็ม)
@@ -177,7 +181,7 @@ function proctorList(room) {
 
 function roomBanner(room) {
   const c = LEVEL_COLOR[room.level];
-  const loc = locationText(room.location);
+  const loc = roomLoc(room);
   return `
     <div class="relative overflow-hidden rounded-2xl bg-navy-900 p-4 text-white">
       <div class="dot-pattern absolute inset-0 opacity-30"></div>
@@ -195,10 +199,10 @@ function roomBanner(room) {
 }
 
 function actionButtons(room, student) {
-  const canMap = room.pin && mapUrl();
+  const found = findPlan(room.id);
   return `
     <div class="flex flex-wrap gap-2">
-      ${canMap ? `<button class="inline-flex items-center gap-1.5 rounded-xl bg-gold-500 px-3.5 py-2 text-sm font-bold text-navy-950 hover:bg-gold-400" data-show-map="${h(room.id)}">${ICON.pin} ดูบนแผนผัง</button>` : ''}
+      ${found ? `<button class="inline-flex items-center gap-1.5 rounded-xl bg-gold-500 px-3.5 py-2 text-sm font-bold text-navy-950 hover:bg-gold-400" data-show-map="${h(room.id)}">${ICON.pin} ดูผังห้องสอบ (${h(th(found.plan.name))})</button>` : ''}
       ${student ? `<button class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-open-room="${h(room.id)}">${ICON.list} รายชื่อทั้งห้อง</button>
       <button class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-share="${h(student.no)}">${ICON.share} แชร์</button>` : ''}
     </div>`;
@@ -358,7 +362,7 @@ document.addEventListener('click', async (e) => {
     const hit = state.index.find((x) => x.student.no === shareBtn.dataset.share);
     if (!hit) return;
     const url = `${location.origin}${location.pathname}?q=${encodeURIComponent(hit.no)}`;
-    const text = `${fullName(hit.student)} เลขที่สอบ ${formatNo(hit.no)}\n${roomTitle(hit.room)}${locationText(hit.room.location) ? `\n📍 ${locationText(hit.room.location)}` : ''}`;
+    const text = `${fullName(hit.student)} เลขที่สอบ ${formatNo(hit.no)}\n${roomTitle(hit.room)}${roomLoc(hit.room) ? `\n📍 ${roomLoc(hit.room)}` : ''}`;
     try {
       if (navigator.share) await navigator.share({ title: 'ห้องสอบธรรมสนามหลวง', text, url });
       else { await navigator.clipboard.writeText(`${text}\n${url}`); shareBtn.lastChild.textContent = ' คัดลอกแล้ว'; }
@@ -455,14 +459,14 @@ function renderSchedule() {
 }
 
 /* ------------------------------------------------------------------ แผนผัง */
+// ๑) ผังรวมโรงเรียน (config.mapUrl) — ภาพเดียว บอกว่าใช้อาคารใดสอบบ้าง
+// ๒) ผังห้องสอบรายอาคาร — วาดด้วย canvas จาก floorplans.js ห้องที่ค้นหาเจอจะกระพริบ
 
-function pinsHtml(activeId) {
-  return state.rooms.filter((r) => r.pin).map((r) => {
-    const c = LEVEL_COLOR[r.level];
-    const active = r.id === activeId;
-    return `<button class="map-pin ${active ? 'is-active pin-pulse' : ''}" data-pin="${h(r.id)}" style="left:${r.pin.x}%;top:${r.pin.y}%;background:${c.bg};color:${c.fg}" aria-label="${h(roomShort(r))}">${h(roomPinLabel(r))}</button>`;
-  }).join('');
-}
+let planCtl = null;      // ผังในหน้าเว็บ
+let planFullCtl = null;  // ผังในหน้าต่างเต็มจอ
+
+const roomsMap = () => new Map(state.rooms.map((r) => [r.id, r]));
+const planRooms = (plan) => plan.floors.flatMap((f) => f.rooms.filter((r) => r.room && roomById(r.room)).map((r) => roomById(r.room)));
 
 function mapFactsHtml() {
   const c = state.config || {};
@@ -478,38 +482,73 @@ function mapFactsHtml() {
     </div>`).join('')}</div>`;
 }
 
+function expandButton(attr) {
+  return `<button ${attr} class="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-xl bg-navy-900/85 px-3 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-navy-900">${ICON.expand} ขยายเต็มจอ</button>`;
+}
+
 function renderMap() {
-  const url = mapUrl();
   const box = $('#mapBody');
-  if (!url) {
-    box.innerHTML = `${mapFactsHtml()}<div class="card grid min-h-48 place-items-center p-6 text-center">
-      <div><p class="text-4xl">🗺️</p><p class="mt-2 font-semibold text-navy-900">แผนผังอาคารจะประกาศเร็ว ๆ นี้</p></div></div>`;
-    return;
-  }
-  const active = roomById(state.mapRoomId);
+  const campus = mapUrl();
+  if (!FLOORPLANS.some((p) => p.id === state.buildingId)) state.buildingId = FLOORPLANS[0]?.id || null;
+  const plan = FLOORPLANS.find((p) => p.id === state.buildingId);
+  const rooms = plan ? planRooms(plan) : [];
+  const active = rooms.find((r) => r.id === state.mapRoomId);
+
   box.innerHTML = `
     ${mapFactsHtml()}
-    <div class="card overflow-hidden">
+    ${campus ? `
+    <figure class="card overflow-hidden">
       <div class="relative">
-        <div id="mapBox" class="relative">
-          <img src="${h(cloudinaryVariant(url, MAP_INLINE))}" alt="แผนผังสถานที่สอบธรรมศึกษา ๒๕๖๙ สนามสอบโรงเรียนชุมชนวัดไทยงาม" class="block w-full" loading="lazy">
-          ${pinsHtml(state.mapRoomId)}
-        </div>
-        <button id="mapFull" class="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-xl bg-navy-900/85 px-3 py-2 text-xs font-semibold text-white backdrop-blur hover:bg-navy-900">${ICON.expand} ขยายเต็มจอ</button>
+        <img src="${h(cloudinaryVariant(campus, MAP_INLINE))}" alt="แผนผังสถานที่สอบธรรมศึกษา ๒๕๖๙ สนามสอบโรงเรียนชุมชนวัดไทยงาม" class="block w-full" loading="lazy">
+        ${expandButton('data-full-campus')}
       </div>
-      ${state.rooms.some((r) => r.pin) ? `
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-3 text-xs text-slate-600">
-        ${LEVEL_ORDER.map((lv) => `<span class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full" style="background:${LEVEL_COLOR[lv].bg}"></span>ชั้น${LEVELS[lv]}</span>`).join('')}
-        <span class="text-slate-400">· ป = ประถม ม = มัธยม · แตะหมุดเพื่อดูห้อง</span>
-      </div>` : `
-      <p class="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">แตะ “ขยายเต็มจอ” เพื่อซูมดูรายละเอียด · ตำแหน่งห้องสอบแต่ละห้องจะแสดงในผลการค้นหา</p>`}
-      <div id="mapInfo" class="${active ? '' : 'hidden'} border-t border-slate-100 p-4">${active ? mapInfoHtml(active) : ''}</div>
-    </div>`;
-  $('#mapFull').onclick = openMapDialog;
-  $('#mapBox').onclick = (e) => {
-    const pin = e.target.closest('[data-pin]');
-    if (pin) { state.mapRoomId = pin.dataset.pin; renderMap(); }
-  };
+      <figcaption class="border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
+        <b class="text-navy-900">ผังรวมโรงเรียน</b> · การสอบใช้หลายอาคาร หมุดสีแดงคืออาคารที่ใช้สอบ — ดูผังห้องสอบของแต่ละอาคารได้ด้านล่าง
+      </figcaption>
+    </figure>` : ''}
+
+    ${plan ? `
+    <div id="buildingMaps" class="mt-8">
+      <h3 class="font-display text-xl text-navy-900">ผังห้องสอบแต่ละอาคาร</h3>
+      <p class="mt-1 text-sm text-slate-500">เลือกอาคาร แล้วแตะห้องสอบเพื่อดูรายละเอียด</p>
+      <div class="mt-3 grid gap-2" style="grid-template-columns:repeat(${Math.min(FLOORPLANS.length, 3)},minmax(0,1fr))">
+        ${FLOORPLANS.map((p) => `
+          <button class="chip ${p.id === plan.id ? 'active' : ''}" data-building="${h(p.id)}">
+            <span class="block">${h(th(p.name))}</span>
+            <span class="block text-xs font-normal opacity-75">${th(planRooms(p).length)} ห้องสอบ</span>
+          </button>`).join('')}
+      </div>
+      <div class="card mt-3 overflow-hidden">
+        <div class="flex items-center gap-3 px-4 py-3 text-white" style="background:${planTheme(plan).header}">
+          <img src="assets/img/favicon.svg" alt="" class="h-8 w-8">
+          <p class="min-w-0 flex-1 font-display text-lg leading-tight">แผนผัง${h(th(plan.name))} <span class="text-sm opacity-90">(${h(plan.subtitle.replace(/^อาคาร/, ''))})</span></p>
+          <button data-full-plan class="shrink-0 rounded-lg bg-navy-900/80 px-3 py-1.5 text-xs font-semibold hover:bg-navy-900">${ICON.expand}</button>
+        </div>
+        <div id="planHost" class="px-2 py-3 sm:px-4"></div>
+        ${plan.note ? `<p class="px-4 pb-3 text-xs font-semibold text-slate-500">หมายเหตุ: ${h(th(plan.note))}</p>` : ''}
+        <div class="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3">
+          ${rooms.map((r) => `<button class="rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ${r.id === state.mapRoomId ? 'bg-navy-900 text-gold-300 ring-navy-900' : 'bg-white text-navy-900 ring-slate-200'}" data-plan-room="${h(r.id)}">${h(roomShort(r))}</button>`).join('')}
+        </div>
+        <div id="mapInfo" class="${active ? '' : 'hidden'} border-t border-slate-100 bg-cream p-4">${active ? mapInfoHtml(active) : ''}</div>
+      </div>
+    </div>` : ''}`;
+
+  box.querySelector('[data-full-campus]')?.addEventListener('click', () => openImageDialog(campus, 'ผังรวมโรงเรียน'));
+  if (!plan) return;
+  planCtl?.destroy();
+  planCtl = mountFloorPlan($('#planHost'), { plan, rooms: roomsMap(), activeId: state.mapRoomId, onSelect: selectPlanRoom });
+  box.querySelector('[data-full-plan]').addEventListener('click', () => openPlanDialog(plan));
+  $('#buildingMaps').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-building]');
+    if (b) { state.buildingId = b.dataset.building; state.mapRoomId = null; renderMap(); return; }
+    const r = e.target.closest('[data-plan-room]');
+    if (r) selectPlanRoom(r.dataset.planRoom);
+  });
+}
+
+function selectPlanRoom(roomId) {
+  state.mapRoomId = state.mapRoomId === roomId ? null : roomId;
+  renderMap();
 }
 
 function mapInfoHtml(room) {
@@ -517,48 +556,56 @@ function mapInfoHtml(room) {
     <div class="flex items-start gap-3">
       <div class="min-w-0 flex-1">
         <p class="font-display text-lg text-navy-900">${h(roomTitle(room))}</p>
-        <p class="text-sm text-slate-600">${h(locationText(room.location) || 'ยังไม่ระบุตำแหน่ง')} · ผู้เข้าสอบ ${th((room.students || []).length)} คน</p>
+        <p class="text-sm text-slate-600">${h(roomLoc(room) || 'ยังไม่ระบุตำแหน่ง')} · ผู้เข้าสอบ ${th((room.students || []).length)} คน</p>
       </div>
-      <button class="shrink-0 rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-open-room="${h(room.id)}">รายชื่อ</button>
+      <button class="shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-slate-50" data-open-room="${h(room.id)}">รายชื่อ</button>
     </div>`;
 }
 
+/** จากผลค้นหา → ไปที่ผังอาคารของห้องนั้น และให้ห้องกระพริบ */
 function focusMapRoom(roomId) {
+  const found = findPlan(roomId);
+  if (!found) return;
+  state.buildingId = found.plan.id;
   state.mapRoomId = roomId;
   renderMap();
-  $('#map').scrollIntoView({ behavior: 'smooth' });
+  $('#buildingMaps').scrollIntoView({ behavior: 'smooth' });
 }
 
 /* ---------- เต็มจอ + ซูม ---------- */
 
 const ZOOMS = [1, 1.5, 2, 3];
 function renderZoom() {
-  const box = $('#mapZoomBox');
-  box.style.width = `${ZOOMS[state.zoom] * 100}%`;
+  $('#mapZoomBox').style.width = `${ZOOMS[state.zoom] * 100}%`;
   $('#zoomLabel').textContent = `${th(ZOOMS[state.zoom] * 100)}%`;
 }
-function openMapDialog() {
-  const url = mapUrl();
-  if (!url) return;
-  state.zoom = window.innerWidth < 768 ? 2 : 0;
-  $('#mapZoomBox').innerHTML = `<img src="${h(cloudinaryVariant(url, MAP_FULL))}" alt="แผนผังอาคาร" class="block w-full">${pinsHtml(state.mapRoomId)}`;
+function openDialog(title, zoom) {
+  state.zoom = zoom;
+  $('#mapDialogTitle').textContent = th(title);
   renderZoom();
   $('#mapDialog').showModal();
-  const active = $('#mapZoomBox .is-active');
-  if (active) setTimeout(() => active.scrollIntoView({ block: 'center', inline: 'center' }), 50);
+}
+function openImageDialog(url, title) {
+  if (!url) return;
+  $('#mapZoomBox').innerHTML = `<img src="${h(cloudinaryVariant(url, MAP_FULL))}" alt="${h(title)}" class="block w-full">`;
+  openDialog(title, window.innerWidth < 768 ? 2 : 0);
+}
+function openPlanDialog(plan) {
+  const box = $('#mapZoomBox');
+  box.innerHTML = '<div class="bg-white p-3"></div>';
+  openDialog(`ผังห้องสอบ ${plan.name}`, window.innerWidth < 768 ? 2 : 0);
+  planFullCtl?.destroy();
+  planFullCtl = mountFloorPlan(box.firstElementChild, {
+    plan, rooms: roomsMap(), activeId: state.mapRoomId,
+    onSelect: (id) => { $('#mapDialog').close(); selectPlanRoom(id); },
+  });
 }
 document.querySelectorAll('[data-zoom]').forEach((b) => b.addEventListener('click', () => {
   state.zoom = Math.min(ZOOMS.length - 1, Math.max(0, state.zoom + Number(b.dataset.zoom)));
   renderZoom();
 }));
 $('#mapClose').addEventListener('click', () => $('#mapDialog').close());
-$('#mapZoomBox').addEventListener('click', (e) => {
-  const pin = e.target.closest('[data-pin]');
-  if (!pin) return;
-  $('#mapDialog').close();
-  state.mapRoomId = pin.dataset.pin;
-  renderMap();
-});
+$('#mapDialog').addEventListener('close', () => { planFullCtl?.destroy(); planFullCtl = null; $('#mapZoomBox').innerHTML = ''; });
 
 /* ------------------------------------------------------------------ ระเบียบ */
 

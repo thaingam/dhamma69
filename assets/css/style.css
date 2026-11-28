@@ -32,6 +32,19 @@ body { font-family: 'Sarabun', system-ui, sans-serif; background: var(--cream); 
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .gold-line { height: 2px; background: linear-gradient(90deg, transparent, var(--gold-400), transparent); }
+/* สุภาษิตธรรม — ฟอนต์ Thasadith */
+.font-pali { font-family: 'Thasadith', 'Sarabun', sans-serif; }
+.quote-card {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(230, 199, 102, .28), transparent 60%),
+    linear-gradient(180deg, #FFFDF6 0%, var(--gold-100) 100%);
+  border: 1px solid rgba(201, 162, 39, .35);
+  box-shadow: 0 1px 2px rgba(11, 31, 58, .05), 0 10px 28px -16px rgba(184, 138, 27, .45);
+}
+.quote-box { transition: opacity .35s ease, transform .35s ease; }
+.quote-box.is-out { opacity: 0; transform: translateY(6px); }
+@media (prefers-reduced-motion: reduce) { .quote-box { transition: none; } }
+
 .card { background: #fff; border-radius: 1.25rem; box-shadow: 0 1px 2px rgba(11, 31, 58, .06), 0 8px 24px -12px rgba(11, 31, 58, .18); }
 
 /* ธรรมจักรหมุนช้า ๆ */

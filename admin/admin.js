@@ -14,6 +14,9 @@ import {
 } from '../assets/js/utils.js';
 import { FLOORPLANS, findPlan, effectiveLocation } from '../assets/js/floorplans.js';
 import {
+  DEFAULT_QUOTES, DEFAULT_INTERVAL, parseQuoteLines, quoteLines, effectiveQuotes,
+} from '../assets/js/quotes.js';
+import {
   COL_SURVEYS, GROUPS, SECTIONS, QUESTIONS, levelOf, meanSd,
 } from '../assets/js/survey-questions.js';
 
@@ -183,7 +186,7 @@ function render() {
     view.querySelector('[data-goto]').onclick = () => $('#tabs [data-tab="system"]').click();
     return;
   }
-  ({ rooms: renderRooms, map: renderMap, exam: renderExam, announce: renderAnnounce,
+  ({ rooms: renderRooms, map: renderMap, exam: renderExam, announce: renderAnnounce, quotes: renderQuotes,
     committee: renderCommittee, survey: renderSurvey, system: renderSystem })[state.tab]();
 }
 
@@ -643,6 +646,71 @@ function renderAnnounce() {
     const announcement = { active: fd.get('active') === 'on', tone: fd.get('tone'), text: String(fd.get('text') || '').trim() };
     if (announcement.active && !announcement.text) { toast('กรุณาพิมพ์ข้อความประกาศ', 'warn'); return; }
     try { await setDoc(siteRef('config'), { announcement, updatedAt: serverTimestamp() }, { merge: true }); toast('บันทึกประกาศแล้ว'); }
+    catch (err) { toast(errText(err), 'error'); }
+  };
+}
+
+/* ------------------------------------------------------------------ แท็บ ภาษิตธรรม */
+
+function renderQuotes() {
+  const q = effectiveQuotes(state.config);
+  const view = $('#appView');
+  view.innerHTML = `
+    <form id="quoteForm" class="card space-y-4 p-4 sm:p-5">
+      <div>
+        <h2 class="font-display text-lg text-navy-900">สุภาษิตธรรม (พุทธศาสนสุภาษิต)</h2>
+        <p class="text-sm text-slate-500">แสดงใต้ช่องค้นหาบนหน้าเว็บ ด้วยฟอนต์ Thasadith · สุ่มบทเมื่อเปิดหน้า และเปลี่ยนบทเองตามเวลาที่กำหนด</p>
+      </div>
+      <label class="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
+        <input type="checkbox" name="active" class="h-5 w-5 accent-[#C9A227]" ${q.active ? 'checked' : ''}>
+        <span class="font-semibold text-navy-900">แสดงสุภาษิตบนหน้าเว็บ</span>
+      </label>
+      <div class="max-w-xs"><label class="lbl">เปลี่ยนบททุก ๆ (วินาที)</label>
+        <input class="inp" type="number" name="interval" min="0" max="600" step="1" value="${h(q.interval)}">
+        <p class="mt-1 text-xs text-slate-500">ใส่ 0 = ไม่เปลี่ยนเอง (ผู้ชมกด “สุ่มบทใหม่” ได้) · ขั้นต่ำ ๕ วินาที</p></div>
+      <div>
+        <div class="mb-1 flex flex-wrap items-end justify-between gap-2">
+          <label class="lbl mb-0">รายการสุภาษิต — บรรทัดละบท: <code>บาลี | คำแปล | ที่มา (ไม่ใส่ก็ได้)</code></label>
+          <button type="button" class="btn btn-ghost px-3 py-1.5 text-xs" id="quoteDefaults">ใส่ชุดเริ่มต้น (${th(DEFAULT_QUOTES.length)} บท)</button>
+        </div>
+        <textarea class="inp min-h-64 font-pali text-lg" name="items" spellcheck="false">${h(quoteLines(q.items))}</textarea>
+        <p class="mt-1 text-xs text-slate-500">ถ้าลบจนว่าง หน้าเว็บจะใช้ชุดเริ่มต้นแทน · บรรทัดที่ไม่มี | จะแสดงเป็นข้อความภาษาไทยอย่างเดียว</p>
+      </div>
+      <div>
+        <p class="lbl">ตัวอย่างการแสดงผล <span id="quoteCount" class="font-normal text-slate-500"></span></p>
+        <div id="quotePreview" class="max-h-80 space-y-2 overflow-y-auto rounded-xl bg-gold-100/60 p-3"></div>
+      </div>
+      <button class="btn btn-navy w-full sm:w-auto">บันทึกสุภาษิต</button>
+    </form>`;
+  const form = $('#quoteForm');
+  const ta = form.elements.items;
+  const preview = () => {
+    const items = parseQuoteLines(ta.value);
+    $('#quoteCount').textContent = `(${th(items.length)} บท)`;
+    $('#quotePreview').innerHTML = items.length ? items.map((x) => `
+      <div class="rounded-lg bg-white px-3 py-2 text-center">
+        ${x.pali ? `<p class="font-pali text-xl font-bold text-navy-900">${h(x.pali)}</p>` : ''}
+        ${x.thai ? `<p class="font-pali text-base text-[#B88A1B]">${h(th(x.thai))}</p>` : ''}
+        ${x.ref ? `<p class="text-xs text-slate-500">${h(th(x.ref))}</p>` : ''}
+      </div>`).join('') : '<p class="text-sm text-slate-500">ว่าง — จะใช้ชุดเริ่มต้น</p>';
+  };
+  ta.addEventListener('input', preview);
+  preview();
+  $('#quoteDefaults').onclick = () => {
+    if (ta.value.trim() && !confirm('แทนที่รายการปัจจุบันด้วยชุดเริ่มต้นหรือไม่? (ยังไม่บันทึกจนกว่าจะกดบันทึก)')) return;
+    ta.value = quoteLines(DEFAULT_QUOTES);
+    preview();
+  };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const n = Number.parseInt(fd.get('interval'), 10);
+    const quotes = {
+      active: fd.get('active') === 'on',
+      interval: Number.isFinite(n) ? Math.min(600, Math.max(0, n)) : DEFAULT_INTERVAL,
+      items: parseQuoteLines(fd.get('items')),
+    };
+    try { await setDoc(siteRef('config'), { quotes, updatedAt: serverTimestamp() }, { merge: true }); toast('บันทึกสุภาษิตแล้ว'); }
     catch (err) { toast(errText(err), 'error'); }
   };
 }

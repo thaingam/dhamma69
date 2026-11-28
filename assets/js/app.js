@@ -11,6 +11,7 @@ import {
 import { FLOORPLANS, findPlan, effectiveLocation, planTheme } from './floorplans.js';
 import { mountFloorPlan } from './floorplan-canvas.js';
 import { icon } from './icons.js';
+import { effectiveQuotes } from './quotes.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -101,6 +102,7 @@ function renderAll() {
   if (!state.loaded.rooms || !state.loaded.config) return;
   renderAnnouncement();
   renderHero();
+  renderQuotes();
   renderSearchReady();
   renderStats();
   renderSchedule();
@@ -1039,6 +1041,74 @@ document.querySelectorAll('[data-zoom]').forEach((b) => b.addEventListener('clic
 }));
 $('#mapClose').addEventListener('click', () => $('#mapDialog').close());
 $('#mapDialog').addEventListener('close', () => { planFullCtl?.destroy(); planFullCtl = null; $('#mapZoomBox').innerHTML = ''; });
+
+/* ------------------------------------------------------------------ สุภาษิตธรรม */
+
+// สุ่มลำดับทั้งชุด แล้วแสดงไล่ไปทีละบท → ไม่ซ้ำจนกว่าจะครบรอบ
+const quote = { key: '', items: [], order: [], pos: 0, timer: null, swap: null };
+
+function shuffledOrder(n, avoidFirst) {
+  const a = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  if (n > 1 && a[0] === avoidFirst) [a[0], a[1]] = [a[1], a[0]];
+  return a;
+}
+
+function quoteHtml(q) {
+  return `
+    ${q.pali ? `<p class="font-pali text-[1.65rem] font-bold leading-snug text-navy-900 sm:text-4xl">${chunks(q.pali, /\s+/).join(' ')}</p>` : ''}
+    ${q.thai ? `<p class="font-pali ${q.pali ? 'mt-2 text-lg text-gold-600 sm:text-2xl' : 'text-2xl font-bold text-navy-900 sm:text-3xl'}">${chunks(q.thai, /\s+/).join(' ')}</p>` : ''}
+    ${q.ref ? `<footer class="mt-3 text-xs text-slate-500">${h(th(q.ref))}</footer>` : ''}`;
+}
+
+function showQuote(animate) {
+  const box = $('#quoteBox');
+  const q = quote.items[quote.order[quote.pos]];
+  if (!q) return;
+  clearTimeout(quote.swap);
+  if (!animate || matchMedia('(prefers-reduced-motion: reduce)').matches) { box.innerHTML = quoteHtml(q); return; }
+  box.classList.add('is-out');
+  quote.swap = setTimeout(() => { box.innerHTML = quoteHtml(q); box.classList.remove('is-out'); }, 350);
+}
+
+function nextQuote() {
+  quote.pos += 1;
+  if (quote.pos >= quote.order.length) {
+    quote.order = shuffledOrder(quote.items.length, quote.order[quote.order.length - 1]);
+    quote.pos = 0;
+  }
+  showQuote(true);
+}
+
+function startQuoteTimer(seconds) {
+  clearInterval(quote.timer);
+  quote.timer = null;
+  if (seconds > 0 && quote.items.length > 1) {
+    quote.timer = setInterval(() => { if (!document.hidden) nextQuote(); }, Math.max(5, seconds) * 1000);
+  }
+}
+
+function renderQuotes() {
+  const q = effectiveQuotes(state.config);
+  $('#dharma').classList.toggle('hidden', !q.active);
+  if (!q.active) { startQuoteTimer(0); return; }
+  const key = JSON.stringify(q.items);
+  if (key !== quote.key) {   // สุ่มใหม่เฉพาะตอนรายการเปลี่ยน ไม่ใช่ทุกครั้งที่ข้อมูลห้องอัปเดต
+    quote.key = key;
+    quote.items = q.items;
+    quote.order = shuffledOrder(q.items.length);
+    quote.pos = 0;
+    showQuote(false);
+  }
+  quote.interval = q.interval;
+  $('#quoteNext').classList.toggle('hidden', q.items.length < 2);
+  startQuoteTimer(q.interval);
+}
+
+$('#quoteNext').addEventListener('click', () => { nextQuote(); startQuoteTimer(quote.interval); });
 
 /* ------------------------------------------------------------------ ระเบียบ */
 
